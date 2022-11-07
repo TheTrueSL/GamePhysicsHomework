@@ -29,13 +29,13 @@ private:
 class Spring {
 	friend class MassSpringSystemSimulator;
 public:
-	Spring(int pID0, int pID1, float stiffness, float restLength);
-	Spring(int pID0, int pID1, float stiffness, float restLength, float length);
+	Spring(int pID0, int pID1, float stiffness, float damping, float restLength);
 
 private:
 	int _pointID0;
 	int _pointID1;
 
+	float _damping;
 	float _stiffness;
 	float _restLength;
 };
@@ -60,8 +60,10 @@ public:
 	void setMass(float mass);
 	void setStiffness(float stiffness);
 	void setGravity(const Vec3& gravity);
+	void setSpringDampingFactor(float damping);
 	void setDampingFactor(float damping);
 	int addMassPoint(Vec3 position, Vec3 Velocity, bool isFixed);
+	void addSpring(int masspoint1, int masspoint2);
 	void addSpring(int masspoint1, int masspoint2, float initialLength);
 	int getNumberOfMassPoints();
 	int getNumberOfSprings();
@@ -71,9 +73,22 @@ public:
 
 	void loadSimpleSetup();
 	void loadComplexSetup();
+	void createRope(const Vec3& start, const Vec3& end, int samples);
+	void createCloth(const Vec3& start, const Vec3& end, int samples0, int samples1);
+	void createBox(const Vec3& center, const float size);
+	void createSphere(const Vec3& center, const float radius, int subdivisions);
+
 
 	bool collisionResolve(
+		const float& deltaTime,
 		const std::vector<PointMass>& points,
+		std::vector<PointMass>& outPoints);
+
+	bool collisionPLane(
+		const float& deltaTime,
+		const std::vector<PointMass>& points,
+		const Vec3& n,
+		const float offset,
 		std::vector<PointMass>& outPoints);
 	
 	void computeInternalForce(
@@ -81,6 +96,15 @@ public:
 		const std::vector<Spring>& springs,
 		std::vector<PointMass>& outPoints);
 
+	void dampingForce(
+		const std::vector<PointMass>& points,
+		std::vector<PointMass>& outPoints
+
+	);
+	void copyPoints(
+		const std::vector<PointMass>& inPoints,
+		std::vector<PointMass>& outPoints
+	);
 	void clearPointForce(
 		std::vector<PointMass>& outPoints
 	);
@@ -132,7 +156,10 @@ public:
 
 private:
 	// Simulation
-	std::vector<PointMass> _points;
+	int _frontBufferIdx;
+	int _backBufferIdx;
+	std::vector<PointMass> _pointsBuffers[2];
+	std::vector<PointMass> _tempPoints;
 	std::vector<Spring> _springs;
 
 	Vec3 _gravity;
@@ -140,13 +167,14 @@ private:
 	bool _enableCollision;
 
 	// demo
-	int printSteps = 0;
+	int _printSteps = 0;
 
 private:
 	// Data Attributes
 	float m_fMass;
 	float m_fStiffness;
-	float m_fDamping;
+	float m_fSpringDamping;
+	float m_fPointDamping;
 	int m_iIntegrator;
 
 	// UI Attributes
