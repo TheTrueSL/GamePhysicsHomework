@@ -89,6 +89,7 @@ public:
 		const std::vector<PointMass>& points,
 		const Vec3& n,
 		const float offset,
+		const float friction,
 		std::vector<PointMass>& outPoints);
 	
 	void computeInternalForce(
@@ -106,6 +107,10 @@ public:
 		std::vector<PointMass>& outPoints
 	);
 	void clearPointForce(
+		std::vector<PointMass>& outPoints
+	);
+
+	void applyExternalForceSpring(
 		std::vector<PointMass>& outPoints
 	);
 
@@ -155,16 +160,24 @@ public:
 	}
 
 private:
+	bool _isPressed;
+	// events
+	void onMouseDown(int x, int y);
+
+private:
 	// Simulation
-	int _frontBufferIdx;
-	int _backBufferIdx;
-	std::vector<PointMass> _pointsBuffers[2];
+	std::vector<PointMass> _points;
 	std::vector<PointMass> _tempPoints;
 	std::vector<Spring> _springs;
+
+	int _dragPointMassIndex;
+	Vec3 _dragOrigin;
+	Vec3 _dragPoint;
 
 	Vec3 _gravity;
 	bool _enableGraviy;
 	bool _enableCollision;
+	bool _enableExternalSpringForce;
 
 	// demo
 	int _printSteps = 0;

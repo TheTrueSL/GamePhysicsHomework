@@ -1,6 +1,6 @@
 #include "MassSpringSystemSimulator.h"
 
-#define VALID_POINT(_i_, _size_) ((_i_) >= 0 && (_i_) < (_size_))
+#include<random>
 
 const Vec3 ZERO_VEC(0, 0, 0);
 
@@ -17,6 +17,7 @@ MassSpringSystemSimulator::MassSpringSystemSimulator()
 
 	_enableCollision = false;
 	_enableGraviy = false;
+	_enableExternalSpringForce = false;
 
 	_printSteps = -1;
 
@@ -39,17 +40,15 @@ void MassSpringSystemSimulator::initUI(DrawingUtilitiesClass* DUC)
 
 	TwAddVarRW(DUC->g_pTweakBar, "Gravity", TW_TYPE_BOOLCPP, &this->_enableGraviy, "");
 	TwAddVarRW(DUC->g_pTweakBar, "Collision", TW_TYPE_BOOLCPP, &this->_enableCollision, "");
-
 }
 
 void MassSpringSystemSimulator::reset()
 {
-	_frontBufferIdx = 0;
-	_backBufferIdx = 1;
-	_pointsBuffers[0].clear();
-	_pointsBuffers[1].clear();
+	_points.clear();
 	_tempPoints.clear();
 	_springs.clear();
+
+	_isPressed = false;
 
 	// UI Attributes
 	m_externalForce = Vec3();
@@ -60,7 +59,7 @@ void MassSpringSystemSimulator::reset()
 
 void MassSpringSystemSimulator::drawFrame(ID3D11DeviceContext* pd3dImmediateContext)
 {
-	std::vector<PointMass>& points = _pointsBuffers[_frontBufferIdx];
+	std::vector<PointMass>& points = _points;
 
 	const int POINT_SIZE = points.size();
 	const int SPRING_SIZE = _springs.size();
@@ -77,13 +76,23 @@ void MassSpringSystemSimulator::drawFrame(ID3D11DeviceContext* pd3dImmediateCont
 		Spring& s = _springs[sid];
 		int pid0 = s._pointID0;
 		int pid1 = s._pointID1; 
-		if (VALID_POINT(pid0, POINT_SIZE) && VALID_POINT(pid1, POINT_SIZE)) {
+		{
 			PointMass& p0 = points[pid0];
 			PointMass& p1 = points[pid1];
 			this->DUC->drawLine(p0._position, lineColor0, p1._position, lineColor1);
 		}
 	}
+
+	if (_enableExternalSpringForce) {
+		this->DUC->drawLine(_dragPoint, lineColor1, points[_dragPointMassIndex]._position, lineColor1);
+	}
+
 	this->DUC->endLine();
+
+	/*if (_enableExternalSpringForce) {
+		this->DUC->drawSphere(_dragPoint, 0.1);
+	}*/
+	
 	//this->DUC->DrawTriangleUsingShaders();
 }
 
@@ -121,16 +130,39 @@ void MassSpringSystemSimulator::externalForcesCalculations(float timeElapsed)
 	Point2D mouseDiff;
 	mouseDiff.x = m_trackmouse.x - m_oldtrackmouse.x;
 	mouseDiff.y = m_trackmouse.y - m_oldtrackmouse.y;
-	if (mouseDiff.x != 0 || mouseDiff.y != 0)
+	if ((mouseDiff.x) != 0 || (mouseDiff.y) != 0)
 	{
-		Mat4 worldViewInv = Mat4(DUC->g_camera.GetWorldMatrix() * DUC->g_camera.GetViewMatrix());
-		worldViewInv = worldViewInv.inverse();
-		Vec3 inputView = Vec3((float)mouseDiff.x, (float)-mouseDiff.y, 0);
-		Vec3 inputWorld = worldViewInv.transformVectorNormal(inputView);
-		// find a proper scale!
-		float inputScale = 0.001f;
-		inputWorld = inputWorld * inputScale;
-		m_externalForce = inputWorld;
+		Mat4 modelViewInv = Mat4(DUC->g_camera.GetWorldMatrix() *
+			DUC->g_camera.GetViewMatrix());
+		modelViewInv = modelViewInv.inverse();
+
+		Mat4 ProjInv = Mat4(DUC->g_camera.GetProjMatrix());
+		ProjInv = ProjInv.inverse();
+
+		Mat4 View = Mat4(DUC->g_camera.GetViewMatrix());
+
+		float mx = -1 + 2 * (float)m_trackmouse.x / DUC->g_windowSize[0];
+		float my = 1 - 2 * (float)m_trackmouse.y / DUC->g_windowSize[1];
+
+		Vec3 v0 = Vec3(mx, my, 0);
+		Vec3 v1 = Vec3(mx, my, 1);
+		XMVECTOR view0 = XMVector4Transform(
+			v0.toDirectXVector(), ProjInv.toDirectXMatrix());
+		XMVECTOR w_vector0 = XMVectorSplatW(view0);
+		view0 = XMVectorDivide(view0, w_vector0);
+
+		XMVECTOR view1 = XMVector4Transform(
+			v1.toDirectXVector(), ProjInv.toDirectXMatrix());
+		XMVECTOR w_vector1 = XMVectorSplatW(view1);
+		view1 = XMVectorDivide(view1, w_vector1);
+		
+		Vec3 viewOrigin = View.transformVector(_dragOrigin);
+
+		Vec3 ray = (view1 - view0);
+		normalize(ray);
+
+		Vec3 viewdDragPoint = ray * viewOrigin.z;
+		_dragPoint = modelViewInv.transformVector(viewdDragPoint);
 	}
 }
 
@@ -141,29 +173,27 @@ void MassSpringSystemSimulator::simulateTimestep(float timeStep)
 
 	if (m_iIntegrator == EULER) {
 		integrateExplicitEuler(timeStep, 
-			_pointsBuffers[_frontBufferIdx], _springs, this->m_externalForce, 
-			_pointsBuffers[_backBufferIdx]);
+			_points, _springs, this->m_externalForce,
+			_points);
 	}
 	else if (m_iIntegrator == MIDPOINT) {
 		integrateMidpoint(timeStep, 
-			_pointsBuffers[_frontBufferIdx], _springs, this->m_externalForce,
-			_pointsBuffers[_backBufferIdx]);
+			_points, _springs, this->m_externalForce,
+			_points);
 	}
 	else if (m_iIntegrator == LEAPFROG) {
 		integrateLeapfrog(timeStep, 
-			_pointsBuffers[_frontBufferIdx], _springs, this->m_externalForce,
-			_pointsBuffers[_backBufferIdx]);
+			_points, _springs, this->m_externalForce,
+			_points);
 	}
 	else {
 		integrateExplicitEuler(timeStep, 
-			_pointsBuffers[_frontBufferIdx], _springs, this->m_externalForce,
-			_pointsBuffers[_backBufferIdx]);
+			_points, _springs, this->m_externalForce,
+			_points);
 	}
 
-	swap(_frontBufferIdx, _backBufferIdx);
-
 	if (_printSteps > 0) {
-		std::vector<PointMass>& points = _pointsBuffers[_frontBufferIdx];
+		std::vector<PointMass>& points = _points;
 		for (int i = 0; i < points.size(); i++) {
 			std::cout << "p " << i << ": " << points[i]._position << std::endl;
 			std::cout << "v " << i << ": " << points[i]._velocity << std::endl;
@@ -175,17 +205,81 @@ void MassSpringSystemSimulator::simulateTimestep(float timeStep)
 
 void MassSpringSystemSimulator::onClick(int x, int y)
 {
+	if (!_isPressed) {
+		onMouseDown(x, y);
+	}
+
+	_isPressed = true;
+
 	m_trackmouse.x = x;
 	m_trackmouse.y = y;
 }
 
 void MassSpringSystemSimulator::onMouse(int x, int y)
 {
+	_isPressed = false;
+	_enableExternalSpringForce = false;
+
 	m_oldtrackmouse.x = x;
 	m_oldtrackmouse.y = y;
 	m_trackmouse.x = x;
 	m_trackmouse.y = y;
 }
+
+void MassSpringSystemSimulator::onMouseDown(int x, int y)
+{
+	// find closest point mass
+	{
+		float mx = (float)x / DUC->g_windowSize[0] * 2 - 1;
+		float my = 1 - (float)y / DUC->g_windowSize[1] * 2;
+
+		const int POINT_SIZE = _points.size();
+		XMMATRIX viewProj = DUC->g_camera.GetViewMatrix() *
+			DUC->g_camera.GetProjMatrix();
+
+		const float dragTolerance = 1e-2;
+		const float overlapTolerance = 1e-3;
+		float nearestZ = 1;
+		float mindd = 1;
+
+		_dragPointMassIndex = -1;
+		_enableExternalSpringForce = false;
+
+		for (int i = 0; i < POINT_SIZE; i++) {
+			XMVECTOR clip_pos = XMVector4Transform(_points[i]._position.toDirectXVector(), viewProj);
+			XMVECTOR w_vector = XMVectorSplatW(clip_pos);
+			XMVECTOR ndc = XMVectorDivide(clip_pos, w_vector);
+
+			float px = DirectX::XMVectorGetX(ndc);
+			float py = DirectX::XMVectorGetY(ndc);
+			float pz = DirectX::XMVectorGetZ(ndc); // depth
+
+			float dd = (mx - px) * (mx - px) + (my - py) * (my - py);
+			if (dd < dragTolerance) {
+				if (mindd > overlapTolerance) {
+					if (mindd > dd) {
+						mindd = dd;
+						nearestZ = pz;
+						_dragPointMassIndex = i;
+						_enableExternalSpringForce = true;
+					}
+				}
+				else {
+					if (nearestZ > pz && dd < overlapTolerance) {
+						nearestZ = pz;
+						_dragPointMassIndex = i;
+					}
+				}
+			}
+		}
+
+		if (_enableExternalSpringForce) {
+			_dragOrigin = _points[_dragPointMassIndex]._position;
+			_dragPoint = _dragOrigin;
+		}
+	}
+}
+
 
 void MassSpringSystemSimulator::setMass(float mass)
 {
@@ -219,23 +313,20 @@ int MassSpringSystemSimulator::addMassPoint(Vec3 position, Vec3 Velocity, bool i
 	float mass = this->m_fMass;
 	float damping = this->m_fPointDamping;
 
-	_pointsBuffers[_frontBufferIdx].push_back(PointMass(mass, damping, position, Velocity, isFixed));
-	_pointsBuffers[_backBufferIdx].push_back(PointMass(mass, damping, position, Velocity, isFixed));
+	_points.push_back(PointMass(mass, damping, position, Velocity, isFixed));
 	_tempPoints.push_back(PointMass(mass, damping, position, Velocity, isFixed));
 
-	point_idx = _pointsBuffers[_frontBufferIdx].size() - 1;
+	point_idx = _points.size() - 1;
 
 	return point_idx;
 }
 
 void MassSpringSystemSimulator::addSpring(int masspoint1, int masspoint2)
 {
-	std::vector<PointMass>& points = _pointsBuffers[_frontBufferIdx];
-
 	float stiffness = this->m_fStiffness;
 	float damping = this->m_fSpringDamping;
 
-	float initialLength = norm(points[masspoint1]._position - points[masspoint2]._position);
+	float initialLength = norm(_points[masspoint1]._position - _points[masspoint2]._position);
 	this->_springs.push_back(Spring(masspoint1, masspoint2, stiffness, damping, initialLength));
 
 }
@@ -249,7 +340,7 @@ void MassSpringSystemSimulator::addSpring(int masspoint1, int masspoint2, float 
 
 int MassSpringSystemSimulator::getNumberOfMassPoints()
 {
-	return _pointsBuffers[_frontBufferIdx].size();
+	return _points.size();
 }
 
 int MassSpringSystemSimulator::getNumberOfSprings()
@@ -259,14 +350,12 @@ int MassSpringSystemSimulator::getNumberOfSprings()
 
 Vec3 MassSpringSystemSimulator::getPositionOfMassPoint(int index)
 {
-	std::vector<PointMass>& points = _pointsBuffers[_frontBufferIdx];
-	return points[index]._position;
+	return _points[index]._position;
 }
 
 Vec3 MassSpringSystemSimulator::getVelocityOfMassPoint(int index)
 {
-	std::vector<PointMass>& points = _pointsBuffers[_frontBufferIdx];
-	return points[index]._velocity;
+	return _points[index]._velocity;
 }
 
 void MassSpringSystemSimulator::applyExternalForce(Vec3 force)
@@ -322,12 +411,12 @@ void MassSpringSystemSimulator::loadComplexSetup()
 	// rope 0
 	this->setMass(1);
 	this->setStiffness(15);
-	this->createRope(Vec3(0.2, 0.4, 0), Vec3(0.2, 0.02, 0), 3);
+	this->createRope(Vec3(0.2, 0.4, 0), Vec3(0.2, 0.025, 0), 3);
 
 	// rope 1
 	this->setMass(1);
-	this->setStiffness(50);
-	this->createRope(Vec3(-0.2, 0.4, 0), Vec3(-0.2, 0.02, 0), 3);
+	this->setStiffness(40);
+	this->createRope(Vec3(-0.2, 0.4, 0), Vec3(-0.2, 0.025, 0), 3);
 
 	// cloth 0
 	this->setMass(1);
@@ -336,7 +425,7 @@ void MassSpringSystemSimulator::loadComplexSetup()
 
 	// box 0
 	this->setMass(0.1);
-	this->setStiffness(75);
+	this->setStiffness(70);
 	this->createBox(Vec3(0, 0.3, 0), 0.1);
 
 	// sphere 0
@@ -426,22 +515,23 @@ bool MassSpringSystemSimulator::collisionResolve(
 {
 	bool isCollided = false;
 	
-	isCollided |= collisionPLane(deltaTime, points, Vec3(0, 1, 0), -0.5, outPoints);
-	isCollided |= collisionPLane(deltaTime, points, Vec3(1, 0, 0), -0.5, outPoints);
-	isCollided |= collisionPLane(deltaTime, points, Vec3(-1, 0, 0), -0.5, outPoints);
-	isCollided |= collisionPLane(deltaTime, points, Vec3(0, 0, 1), -0.5, outPoints);
-	isCollided |= collisionPLane(deltaTime, points, Vec3(0, 0, -1), -0.5, outPoints);
+	isCollided |= collisionPLane(deltaTime, points, Vec3(0, 1, 0), -0.5, 0.5, outPoints);
+	isCollided |= collisionPLane(deltaTime, points, Vec3(1, 0, 0), -0.5, 0.2, outPoints);
+	isCollided |= collisionPLane(deltaTime, points, Vec3(-1, 0, 0), -0.5, 0.2, outPoints);
+	isCollided |= collisionPLane(deltaTime, points, Vec3(0, 0, 1), -0.5, 0.2, outPoints);
+	isCollided |= collisionPLane(deltaTime, points, Vec3(0, 0, -1), -0.5, 0.2, outPoints);
 
 	return isCollided;
 }
 bool MassSpringSystemSimulator::collisionPLane(
 	const float& deltaTime,
 	const std::vector<PointMass>& points, 
-	const Vec3& n, const float offset, 
+	const Vec3& n, const float offset, const float friction,
 	std::vector<PointMass>& outPoints)
 {
 	const int POINT_SIZE = points.size();
 	bool isCollided = false;
+	const float epsilon = 1e-8;
 
 	for (int pid = 0; pid < POINT_SIZE; pid++) {
 		const PointMass& pIn = points[pid];
@@ -450,15 +540,16 @@ bool MassSpringSystemSimulator::collisionPLane(
 			float d = dot(pIn._position, n);
 			if (d < offset) {
 				float vdot = dot(pIn._velocity, n);
-				pOut._position = pIn._position + (offset - d) * n;
-				if (vdot <= 0) {
-					pOut._velocity = pIn._velocity - vdot * n;
-				}
-				else {
-					pOut._position -= pOut._velocity / vdot * (d - offset);
-				}
-				float J = pOut._mass * (1.1f) * std::max(dot(pOut._velocity, n), 0.0);
-				pOut._force = J / (deltaTime + 1e-8) * n;
+				pOut._position = pIn._position + (offset - d + epsilon) * n;
+
+				float velDot = dot(pIn._velocity, n);
+				float halfDot = std::min(velDot, 0.0f);
+				pOut._velocity = (pIn._velocity - halfDot * n);
+
+				float bounciness = 0.01f;
+				float J = -pOut._mass * (1 + bounciness) * halfDot;
+				pOut._force = J / (deltaTime + epsilon) * (n) + (-friction * pIn._velocity - n * velDot);
+
 				isCollided = true;
 			}
 		}
@@ -525,6 +616,16 @@ void MassSpringSystemSimulator::clearPointForce(std::vector<PointMass>& outPoint
 	}
 }
 
+void MassSpringSystemSimulator::applyExternalForceSpring(std::vector<PointMass>& outPoints)
+{
+	const float sitffness = 5;
+	// hook's law
+	Vec3 v0 = outPoints[_dragPointMassIndex]._position - _dragPoint;
+	float length = normalize(v0);
+	// forces
+	outPoints[_dragPointMassIndex]._force += -sitffness * length * v0;
+}
+
 void MassSpringSystemSimulator::applyExternalForcePoints(
 	std::vector<PointMass>& outPoints, const Vec3& externalForce)
 {
@@ -587,51 +688,6 @@ void MassSpringSystemSimulator::integrateExplicitEuler(
 	std::vector<PointMass>& outPoints)
 {
 	copyPoints(points, _tempPoints);
-	clearPointForce(_tempPoints);
-
-	if (_enableGraviy) {
-		applyExternalForcePoints(_tempPoints, _gravity);
-	}
-
-	computeInternalForce(points, springs, _tempPoints);
-	dampingForce(points, _tempPoints);
-
-	if (_enableCollision) {
-		bool hit = collisionResolve(timeStep, _tempPoints, _tempPoints);
-	}
-
-	applyExternalForcePoints(_tempPoints, externalForce);
-
-	updatePosition(timeStep, _tempPoints, _tempPoints, outPoints);
-	updateVelocity(timeStep, _tempPoints, _tempPoints, outPoints);
-}
-
-void MassSpringSystemSimulator::integrateMidpoint(
-	const float& timeStep, 
-	const std::vector<PointMass>& points, const std::vector<Spring>& springs, 
-	const Vec3& externalForce, 
-	std::vector<PointMass>& outPoints)
-{
-	copyPoints(points, _tempPoints);
-	clearPointForce(_tempPoints);
-
-	/*if (_enableGraviy) {
-		applyExternalForcePoints(_tempPoints, _gravity);
-	}*/
-
-	computeInternalForce(points, springs, _tempPoints);
-	dampingForce(points, _tempPoints);
-
-	if (_enableCollision) {
-		bool hit = collisionResolve(timeStep, points, _tempPoints);
-	}
-
-	applyExternalForcePoints(_tempPoints, externalForce);
-
-	updatePosition(timeStep * 0.5, points, _tempPoints, _tempPoints);
-	updateVelocity(timeStep * 0.5, points, _tempPoints, _tempPoints);
-
-	clearPointForce(_tempPoints);
 
 	if (_enableGraviy) {
 		applyExternalForcePoints(_tempPoints, _gravity);
@@ -641,10 +697,50 @@ void MassSpringSystemSimulator::integrateMidpoint(
 	dampingForce(_tempPoints, _tempPoints);
 
 	applyExternalForcePoints(_tempPoints, externalForce);
+	if (_enableExternalSpringForce){
+		applyExternalForceSpring(_tempPoints);
+	}
+
+	updatePosition(timeStep, _tempPoints, _tempPoints, outPoints);
+	updateVelocity(timeStep, _tempPoints, _tempPoints, outPoints);
+
+	clearPointForce(outPoints);
+	if (_enableCollision) {
+		bool hit = collisionResolve(timeStep, outPoints, outPoints);
+	}
+}
+
+void MassSpringSystemSimulator::integrateMidpoint(
+	const float& timeStep, 
+	const std::vector<PointMass>& points, const std::vector<Spring>& springs, 
+	const Vec3& externalForce, 
+	std::vector<PointMass>& outPoints)
+{
+	std::vector<PointMass> midPoints = points;
+
+	integrateExplicitEuler(timeStep * 0.5,
+		points, _springs, this->m_externalForce,
+		midPoints);
+
+	copyPoints(midPoints, _tempPoints);
+
+	if (_enableGraviy) {
+		applyExternalForcePoints(_tempPoints, _gravity);
+	}
+
+	computeInternalForce(_tempPoints, springs, _tempPoints);
+	dampingForce(_tempPoints, _tempPoints);
+
+	
+	applyExternalForcePoints(_tempPoints, externalForce);
+	if (_enableExternalSpringForce) {
+		applyExternalForceSpring(_tempPoints);
+	}
 
 	updatePosition(timeStep, points, _tempPoints, outPoints);
 	updateVelocity(timeStep, points, _tempPoints, outPoints);
 
+	clearPointForce(outPoints);
 	if (_enableCollision) {
 		bool hit = collisionResolve(timeStep, outPoints, outPoints);
 	}
@@ -656,34 +752,30 @@ void MassSpringSystemSimulator::integrateLeapfrog(
 	const Vec3& externalForce, 
 	std::vector<PointMass>& outPoints)
 {
-	std::vector<PointMass> pointsMid = points;
-	// a_0
-	computeInternalForce(points, springs, pointsMid);
-	applyExternalForcePoints(pointsMid, externalForce);
-	if (_enableGraviy) {
-		applyExternalForcePoints(pointsMid, _gravity);
-	}
-	// v_1/2 = v_0 + a_0 * 0.5 * h
-	updateVelocity(timeStep * 0.5, points, pointsMid, pointsMid);
-	// x_1 = x_0 + v_1/2 * h
-	updatePosition(timeStep, points, pointsMid, outPoints);
+	copyPoints(points, _tempPoints);
 
-	// a_1
-	computeInternalForce(outPoints, springs, outPoints);
 	if (_enableGraviy) {
-		applyExternalForcePoints(pointsMid, _gravity);
+		applyExternalForcePoints(_tempPoints, _gravity);
 	}
-	// v_1 = v_1/2 + a_1 * 0.5 * h
-	updateVelocity(timeStep * 0.5, pointsMid, outPoints, outPoints);
+
+	computeInternalForce(points, springs, _tempPoints);
+	dampingForce(points, _tempPoints);
+
+
+	applyExternalForcePoints(_tempPoints, externalForce);
+	if (_enableExternalSpringForce) {
+		applyExternalForceSpring(_tempPoints);
+	}
 	
-	clearPointForce(outPoints);
-	dampingForce(points, outPoints);
+	updateVelocity(timeStep, _tempPoints, _tempPoints, outPoints);
+	updatePosition(timeStep, _tempPoints, outPoints, outPoints);
 
+	clearPointForce(outPoints);
 	if (_enableCollision) {
 		bool hit = collisionResolve(timeStep, outPoints, outPoints);
 	}
-
 }
+
 
 PointMass::PointMass(float mass, float damping, const Vec3& position, const Vec3& velocity, bool isFixed)
 {
