@@ -62,6 +62,7 @@ void MassSpringSystemSimulator::notifyCaseChanged(int testCase)
 		break;
 	case 3:
 		cout << "DEMO 4" << endl;
+		m_iPrintSteps = 5;
 		complexSetup();
 		break;
 	default:
@@ -224,6 +225,8 @@ void MassSpringSystemSimulator::computeElasticAndAddToEndpoints(int index)
 	Vec3 direction = p1.m_vPosition - p2.m_vPosition / currentLength;
 
 	float lengthDifference = currentLength - s.m_fInitialLength;
+	if (m_iPrintSteps > 0) cout << "p1Pos : " << p1.m_vPosition << "  p2Pos : " << p2.m_vPosition << endl;
+	if (m_iPrintSteps > 0) cout << "Length btw. " << s.m_iPoint1Index << ":" << s.m_iPoint2Index << " = " << lengthDifference << endl;
 	Vec3 force = -s.m_fStiffness * lengthDifference * direction;
 	p1.m_vForceAccumulator += force;
 	p2.m_vForceAccumulator += -force;
@@ -263,6 +266,49 @@ void MassSpringSystemSimulator::basicSetup()
 
 void MassSpringSystemSimulator::complexSetup()
 {
+	const int SIZE = 5;
+	vector<vector<int>> p;
+	setMass(10.0);
+	setDampingFactor(0.1);
+	for (int x = 0; x < SIZE; x++) {
+		vector<int> row;
+		for (int z = 0; z < SIZE; z++) {
+			bool isFixed = false;
+			Vec3 v = Vec3(0, 0, 0);
+			if (x == SIZE / 2 && z == SIZE / 2) {
+				isFixed = false;
+				setMass(100.0);
+				v = Vec3(0, 0.1, 0);
+			}
+			row.push_back(addMassPoint(Vec3((x - (int) SIZE / 2), 0, (z - (int) SIZE / 2)), v, isFixed));
+			if (x == SIZE / 2 && z == SIZE / 2) {
+				setMass(10.0);
+			}
+		}
+		p.push_back(row);
+	}
+
+	// Structural
+	for (int x = 0; x < SIZE; x++) {
+		for (int z = 0; z < SIZE; z++) {
+			setStiffness(1.0);
+			//STRUCTURAL
+			if (z + 1 < SIZE) addSpring(p[x][z], p[x][z + 1],1.0);
+			if (x + 1 < SIZE) addSpring(p[x][z], p[x + 1][z], 1.0);
+
+
+			setStiffness(0.8);
+			//SHEAR
+			if (x + 1 < SIZE && z + 1 < SIZE) addSpring(p[x][z], p[x + 1][z + 1], sqrt(2));
+			if (x - 1 >= 0 && z + 1 < SIZE) addSpring(p[x][z], p[x - 1][z + 1], sqrt(2));
+
+
+			setStiffness(0.5);
+			//FLEXION
+			if (x + 2 < SIZE) addSpring(p[x][z], p[x + 2][z], 2.0);
+			if (z + 2 < SIZE) addSpring(p[x][z], p[x][z + 2], 2.0);
+		}
+	}
 }
 
 void MassSpringSystemSimulator::integrateEuler(float timeStep)
@@ -294,8 +340,6 @@ void MassSpringSystemSimulator::integrateLeapfrog(float timeStep)
 
 void MassSpringSystemSimulator::integrateMidpoint(float timeStep)
 {
-	integrateEuler(timeStep * 0.5);
-
 	const int pointsSize = m_points.size();
 	const int springsSize = m_springs.size();
 
@@ -304,15 +348,48 @@ void MassSpringSystemSimulator::integrateMidpoint(float timeStep)
 		computeElasticAndAddToEndpoints(i);
 	}
 
+	// Compute xtmp at t+h/2 based on v(t)
+	vector<Vec3> xtmp;
+	vector<Vec3> vtmp;
+	vector<Vec3> originalX;
 	for (int i = 0; i < pointsSize; i++) {
-		// Add external force
+		Point& p = m_points[i];
+		if (!p.m_bIsFixed) xtmp.push_back(p.m_vPosition + timeStep * 0.5 * p.m_vVelocity);
+		else xtmp.push_back(p.m_vPosition);
+
+		// Compute a(t) (based on forces)
 		addExternalForce(i);
-		// Add damping force
 		addDampingForce(i);
-		// Update positions and velocity
-		updatePosition(i, timeStep);
-		updateVelocity(i, timeStep);
-		// Clear forces
+		Vec3 acceleration;
+		if (!p.m_bIsFixed) acceleration = p.m_vForceAccumulator / p.m_fMass + Vec3(0, -m_fGravity, 0);
+		else acceleration = Vec3(0, 0, 0);
+
+		// Compute vtmp at t+h/2 based on a(t)
+		vtmp.push_back(p.m_vVelocity + 0.5 * timeStep * acceleration);
+
+		// Compute x at t+h
+		p.m_vPosition += timeStep * vtmp[i];
+		originalX.push_back(p.m_vPosition);
+		p.m_vPosition = xtmp[i];
+		clearForces(i);
+	}
+
+	// Compute a at t+h/2 based on xtmp and vtmp (recalculate elastics at t+h/2 based on xtmp and vtmp)
+	for (int i = 0; i < springsSize; i++) {
+		computeElasticAndAddToEndpoints(i);
+	}
+
+	// Compute v at t+h
+	for (int i = 0; i < pointsSize; i++) {
+		Point& p = m_points[i];
+
+		addExternalForce(i);
+		addDampingForce(i);
+		Vec3 acceleration;
+		if (!p.m_bIsFixed) acceleration = p.m_vForceAccumulator / p.m_fMass + Vec3(0, -m_fGravity, 0);
+		else acceleration = Vec3(0, 0, 0);
+		p.m_vPosition = originalX[i];
+		p.m_vVelocity += timeStep * acceleration;
 		clearForces(i);
 	}
 }
