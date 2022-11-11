@@ -9,14 +9,14 @@
 // Do Not Change
 
 
-class MassSpringSystemSimulator:public Simulator{
+class MassSpringSystemSimulator :public Simulator {
 public:
 	// Construtors
 	MassSpringSystemSimulator();
-	
+
 	// UI Functions
-	const char * getTestCasesStr();
-	void initUI(DrawingUtilitiesClass * DUC);
+	const char* getTestCasesStr();
+	void initUI(DrawingUtilitiesClass* DUC);
 	void reset();
 	void drawFrame(ID3D11DeviceContext* pd3dImmediateContext);
 	void notifyCaseChanged(int testCase);
@@ -37,6 +37,14 @@ public:
 	Vec3 getVelocityOfMassPoint(int index);
 	void applyExternalForce(Vec3 force);
 	
+	//Added functions
+	void integrateEuler(float timestep);
+	void setGravity(float gravity);
+	void hookesLawForces(int springIndex);
+	void updatePosition(int pointIndex, float timeStep);
+	void updateVelocity(int pointIndex, float timeStep);
+	void setUpOne();
+
 	// Do Not Change
 	void setIntegrator(int integrator) {
 		m_iIntegrator = integrator;
