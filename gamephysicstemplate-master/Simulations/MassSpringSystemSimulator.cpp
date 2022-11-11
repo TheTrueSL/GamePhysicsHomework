@@ -1,6 +1,7 @@
-#include "MassSpringSystemSimulator.h"
+﻿#include "MassSpringSystemSimulator.h"
 
 #include<random>
+#include<time.h>
 
 const Vec3 ZERO_VEC(0, 0, 0);
 
@@ -49,7 +50,7 @@ void MassSpringSystemSimulator::reset()
 	_springs.clear();
 
 	_isPressed = false;
-
+	_pressedTimer = clock();
 	// UI Attributes
 	m_externalForce = Vec3();
 	m_mouse = Point2D();
@@ -69,8 +70,16 @@ void MassSpringSystemSimulator::drawFrame(ID3D11DeviceContext* pd3dImmediateCont
 	const Vec3 lineColor1 = Vec3(1., 0., 0.);
 	for (int pid = 0; pid < POINT_SIZE; pid++) {
 		PointMass& p = points[pid];
+		if (p._isFixed) {
+			DUC->setUpLighting(Vec3(), Vec3(1, 1, 1), 100, Vec3(1, 0, 0));
+		}
+		else {
+			DUC->setUpLighting(Vec3(), Vec3(1, 1, 1), 100, Vec3(1, 1, 1));
+		}
 		this->DUC->drawSphere(p._position, pointScale);
 	}
+	DUC->setUpLighting(Vec3(), Vec3(1, 1, 1), 0, Vec3(1, 1, 1));
+
 	this->DUC->beginLine();
 	for (int sid = 0; sid < SPRING_SIZE; sid++) {
 		Spring& s = _springs[sid];
@@ -163,6 +172,10 @@ void MassSpringSystemSimulator::externalForcesCalculations(float timeElapsed)
 
 		Vec3 viewdDragPoint = ray * viewOrigin.z;
 		_dragPoint = modelViewInv.transformVector(viewdDragPoint);
+
+		if (_dragPointMassIndex != -1 && _points[_dragPointMassIndex]._isFixed) {
+			_points[_dragPointMassIndex]._position = _dragPoint;
+		}
 	}
 }
 
@@ -206,7 +219,18 @@ void MassSpringSystemSimulator::simulateTimestep(float timeStep)
 void MassSpringSystemSimulator::onClick(int x, int y)
 {
 	if (!_isPressed) {
-		onMouseDown(x, y);
+
+		time_t hoverTime = _pressedTimer;
+		_pressedTimer = clock();
+		hoverTime = _pressedTimer - hoverTime;
+
+		if (hoverTime < 500) { // 500ms
+			onMouseDouble(x, y);
+			_pressedTimer = _pressedTimer - 500;
+		}
+		else {
+			onMouseDown(x, y);
+		}
 	}
 
 	_isPressed = true;
@@ -218,6 +242,7 @@ void MassSpringSystemSimulator::onClick(int x, int y)
 void MassSpringSystemSimulator::onMouse(int x, int y)
 {
 	_isPressed = false;
+
 	_enableExternalSpringForce = false;
 
 	m_oldtrackmouse.x = x;
@@ -228,56 +253,77 @@ void MassSpringSystemSimulator::onMouse(int x, int y)
 
 void MassSpringSystemSimulator::onMouseDown(int x, int y)
 {
-	// find closest point mass
-	{
-		float mx = (float)x / DUC->g_windowSize[0] * 2 - 1;
-		float my = 1 - (float)y / DUC->g_windowSize[1] * 2;
-
-		const int POINT_SIZE = _points.size();
-		XMMATRIX viewProj = DUC->g_camera.GetViewMatrix() *
-			DUC->g_camera.GetProjMatrix();
-
-		const float dragTolerance = 1e-2;
-		const float overlapTolerance = 1e-3;
-		float nearestZ = 1;
-		float mindd = 1;
-
-		_dragPointMassIndex = -1;
+	selectMassPoint(x, y, _dragPointMassIndex);
+	if (_dragPointMassIndex != -1) {
+		PointMass& p = _points[_dragPointMassIndex];
+		_enableExternalSpringForce = true;
+		_dragOrigin = p._position;
+		_dragPoint = _dragOrigin;
+	}
+	else {
 		_enableExternalSpringForce = false;
+	}
+}
 
-		for (int i = 0; i < POINT_SIZE; i++) {
-			XMVECTOR clip_pos = XMVector4Transform(_points[i]._position.toDirectXVector(), viewProj);
-			XMVECTOR w_vector = XMVectorSplatW(clip_pos);
-			XMVECTOR ndc = XMVectorDivide(clip_pos, w_vector);
+void MassSpringSystemSimulator::onMouseDouble(int x, int y)
+{
+	selectMassPoint(x, y, _dragPointMassIndex);
+	if (_dragPointMassIndex != -1) {
+		PointMass& p = _points[_dragPointMassIndex];
+		p._isFixed = !p._isFixed;
+		if (p._isFixed) {
+			p._velocity = ZERO_VEC;
+			p._acceleration = ZERO_VEC;
+			p._force = ZERO_VEC;
+		}
+	}
+}
 
-			float px = DirectX::XMVectorGetX(ndc);
-			float py = DirectX::XMVectorGetY(ndc);
-			float pz = DirectX::XMVectorGetZ(ndc); // depth
+void MassSpringSystemSimulator::selectMassPoint(int x, int y, int& outIndex)
+{
+	// find closest point mass
+	float mx = (float)x / DUC->g_windowSize[0] * 2 - 1;
+	float my = 1 - (float)y / DUC->g_windowSize[1] * 2;
 
-			float dd = (mx - px) * (mx - px) + (my - py) * (my - py);
-			if (dd < dragTolerance) {
-				if (mindd > overlapTolerance) {
-					if (mindd > dd) {
-						mindd = dd;
-						nearestZ = pz;
-						_dragPointMassIndex = i;
-						_enableExternalSpringForce = true;
-					}
+	const int POINT_SIZE = _points.size();
+	XMMATRIX viewProj = DUC->g_camera.GetViewMatrix() *
+		DUC->g_camera.GetProjMatrix();
+
+	const float dragTolerance = 1e-2;
+	const float overlapTolerance = 1e-3;
+	float nearestZ = 1;
+	float mindd = 1;
+
+	outIndex = -1;
+
+	for (int i = 0; i < POINT_SIZE; i++) {
+		XMVECTOR clip_pos = XMVector4Transform(_points[i]._position.toDirectXVector(), viewProj);
+		XMVECTOR w_vector = XMVectorSplatW(clip_pos);
+		XMVECTOR ndc = XMVectorDivide(clip_pos, w_vector);
+
+		float px = DirectX::XMVectorGetX(ndc);
+		float py = DirectX::XMVectorGetY(ndc);
+		float pz = DirectX::XMVectorGetZ(ndc); // depth
+
+		float dd = (mx - px) * (mx - px) + (my - py) * (my - py);
+		if (dd < dragTolerance) {
+			if (mindd > overlapTolerance) {
+				if (mindd > dd) {
+					mindd = dd;
+					nearestZ = pz;
+					outIndex = i;
 				}
-				else {
-					if (nearestZ > pz && dd < overlapTolerance) {
-						nearestZ = pz;
-						_dragPointMassIndex = i;
-					}
+			}
+			else {
+				if (nearestZ > pz && dd < overlapTolerance) {
+					nearestZ = pz;
+					outIndex = i;
 				}
 			}
 		}
-
-		if (_enableExternalSpringForce) {
-			_dragOrigin = _points[_dragPointMassIndex]._position;
-			_dragPoint = _dragOrigin;
-		}
 	}
+
+
 }
 
 
@@ -398,10 +444,10 @@ void MassSpringSystemSimulator::loadComplexSetup()
 {
 	reset();
 
-	float damping = 0.2;
-	float springDamping = 0.5;
+	float damping = 0.15;
+	float springDamping = 0.4;
 
-	Vec3 gravity(0, -0.15, 0);
+	Vec3 gravity(0, -0.065, 0);
 
 	this->setDampingFactor(damping);
 	this->setSpringDampingFactor(springDamping);
@@ -421,17 +467,13 @@ void MassSpringSystemSimulator::loadComplexSetup()
 	// cloth 0
 	this->setMass(1);
 	this->setStiffness(50);
-	//this->createCloth();
+	this->createCloth(Vec3(-0.2, 0.4, 0.1), Vec3(0.2, 0.1, 0.1), 3, 4);
 
 	// box 0
-	this->setMass(0.1);
-	this->setStiffness(70);
-	this->createBox(Vec3(0, 0.3, 0), 0.1);
+	this->setMass(0.8);
+	this->setStiffness(45);
+	this->createBox(Vec3(0, 0.3, 0), 0.08);
 
-	// sphere 0
-	this->setMass(1);
-	this->setStiffness(80);
-	//this->createSphere();
 }
 
 void MassSpringSystemSimulator::createRope(const Vec3& start, const Vec3& end, int samples)
@@ -454,6 +496,7 @@ void MassSpringSystemSimulator::createRope(const Vec3& start, const Vec3& end, i
 
 void MassSpringSystemSimulator::createCloth(const Vec3& start, const Vec3& end, int samples0, int samples1)
 {
+
 }
 
 void MassSpringSystemSimulator::createBox(const Vec3& center, const float size)
@@ -501,11 +544,6 @@ void MassSpringSystemSimulator::createBox(const Vec3& center, const float size)
 	this->addSpring(istart + 4, istart + 7);
 	this->addSpring(istart + 7, istart + 5);
 	this->addSpring(istart + 6, istart + 8);
-
-}
-
-void MassSpringSystemSimulator::createSphere(const Vec3& center, const float radius, int subdivisions)
-{
 }
 
 bool MassSpringSystemSimulator::collisionResolve(
@@ -531,7 +569,7 @@ bool MassSpringSystemSimulator::collisionPLane(
 {
 	const int POINT_SIZE = points.size();
 	bool isCollided = false;
-	const float epsilon = 1e-8;
+	const float epsilon = 1e-9;
 
 	for (int pid = 0; pid < POINT_SIZE; pid++) {
 		const PointMass& pIn = points[pid];
@@ -546,9 +584,9 @@ bool MassSpringSystemSimulator::collisionPLane(
 				float halfDot = std::min(velDot, 0.0f);
 				pOut._velocity = (pIn._velocity - halfDot * n);
 
-				float bounciness = 0.01f;
+				float bounciness = 0.0f;
 				float J = -pOut._mass * (1 + bounciness) * halfDot;
-				pOut._force = J / (deltaTime + epsilon) * (n) + (-friction * pIn._velocity - n * velDot);
+				pOut._force = J / (deltaTime + epsilon) * (n) + (-friction * (pIn._velocity - n * velDot));
 
 				isCollided = true;
 			}
@@ -618,12 +656,14 @@ void MassSpringSystemSimulator::clearPointForce(std::vector<PointMass>& outPoint
 
 void MassSpringSystemSimulator::applyExternalForceSpring(std::vector<PointMass>& outPoints)
 {
-	const float sitffness = 5;
-	// hook's law
-	Vec3 v0 = outPoints[_dragPointMassIndex]._position - _dragPoint;
-	float length = normalize(v0);
-	// forces
-	outPoints[_dragPointMassIndex]._force += -sitffness * length * v0;
+	if (!outPoints[_dragPointMassIndex]._isFixed) {
+		const float sitffness = 3.5f;
+		// hook's law
+		Vec3 v0 = outPoints[_dragPointMassIndex]._position - _dragPoint;
+		float length = normalize(v0);
+		// forces
+		outPoints[_dragPointMassIndex]._force += -sitffness * length * v0;
+	}
 }
 
 void MassSpringSystemSimulator::applyExternalForcePoints(
@@ -653,6 +693,9 @@ void MassSpringSystemSimulator::updatePosition(
 		if (!p._isFixed)
 		{
 			p._position = pPos._position + pVel._velocity * timeStep;
+		}
+		else {
+			p._position = pPos._position;
 		}
 	}
 }

@@ -76,8 +76,6 @@ public:
 	void createRope(const Vec3& start, const Vec3& end, int samples);
 	void createCloth(const Vec3& start, const Vec3& end, int samples0, int samples1);
 	void createBox(const Vec3& center, const float size);
-	void createSphere(const Vec3& center, const float radius, int subdivisions);
-
 
 	bool collisionResolve(
 		const float& deltaTime,
@@ -161,8 +159,12 @@ public:
 
 private:
 	bool _isPressed;
+	time_t _pressedTimer;
 	// events
 	void onMouseDown(int x, int y);
+	void onMouseDouble(int x, int y);
+
+	void selectMassPoint(int x, int y, int& outIndex);
 
 private:
 	// Simulation
