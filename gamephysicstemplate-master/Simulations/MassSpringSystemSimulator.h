@@ -1,6 +1,8 @@
 #ifndef MASSSPRINGSYSTEMSIMULATOR_h
 #define MASSSPRINGSYSTEMSIMULATOR_h
 #include "Simulator.h"
+#include "Spring.h"
+#include "PointMass.h"
 
 // Do Not Change
 #define EULER 0
@@ -13,6 +15,9 @@ class MassSpringSystemSimulator:public Simulator{
 public:
 	// Construtors
 	MassSpringSystemSimulator();
+
+	//Destructor
+	~MassSpringSystemSimulator();
 	
 	// UI Functions
 	const char * getTestCasesStr();
@@ -36,6 +41,14 @@ public:
 	Vec3 getPositionOfMassPoint(int index);
 	Vec3 getVelocityOfMassPoint(int index);
 	void applyExternalForce(Vec3 force);
+
+	//Additional Functions
+	void loadDemo1Setup();
+	void loadDemo2Setup();
+	void loadDemo3Setup();
+	void loadDemo4Setup();
+	void setStep(int stepS);
+	void computeElasticForces();
 	
 	// Do Not Change
 	void setIntegrator(int integrator) {
@@ -54,5 +67,11 @@ private:
 	Point2D m_mouse;
 	Point2D m_trackmouse;
 	Point2D m_oldtrackmouse;
+
+	//Additional Attributes
+	vector<Spring*> slist;
+	vector<PointMass*> plist;
+	int m_steps;
+
 };
 #endif
