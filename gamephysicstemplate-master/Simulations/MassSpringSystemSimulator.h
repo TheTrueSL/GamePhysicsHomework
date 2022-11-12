@@ -49,6 +49,8 @@ public:
 	void computeElasticForces();
 	void updateVelocityEuler(float timeStep);
 	void updatePositionEuler(float timeStep);
+	void updateVelocityMidpoint(float timeStep);
+	void updatePositionMidpoint(float timeStep);
 
 	void integrateEuler(float timeStep);
 	void integrateMidpoint(float timeStep);

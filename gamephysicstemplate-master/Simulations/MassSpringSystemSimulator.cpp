@@ -103,7 +103,6 @@ void MassSpringSystemSimulator::notifyCaseChanged(int testCase)
 	case 0:
 		cout << "SIMPLE DEMO Information\n";
 		loadSimpleDemo();
-		setIntegrator(0);
 		break;
 	case 1:
 		cout << "COMPLEX DEMO Information\n";
@@ -133,7 +132,7 @@ void MassSpringSystemSimulator::simulateTimestep(float timeStep)
 	case 1:
 		break;
 	case 2:
-		//integrateMidpoint(timeStep);
+		integrateMidpoint(timeStep);
 		break;
 	default:
 		integrateEuler(timeStep);
@@ -313,6 +312,77 @@ void MassSpringSystemSimulator::integrateEuler(float timestep) {
 }
 
 void MassSpringSystemSimulator::integrateMidpoint(float timestep) {
+	
+	vector<Vec3> midPosList;
+	vector<Vec3> midVelList;
+
+	//Compute midstep for position
+	computeElasticForces();
+
+	Vec3 newPos = (0.0, 0.0, 0.0);
+	Vec3 midPos = (0.0, 0.0, 0.0);
+
+	for (int i = 0; i < plist.size(); i++)
+	{
+		//Update new pos using old pos
+		PointMass p = (*plist[i]);
+		if (!p._isFixed()) {
+			midPos = posPrevList[i] + (timestep/2 * velPrevList[i]);
+			midPosList.push_back(midPos);
+			(*plist[i]).setPointPosition(midPos);
+		}
+	}
+
+	//Compute midstep for velocity
+	Vec3 acc = (0.0, 0.0, 0.0);
+	Vec3 newVelocity = (0.0, 0.0, 0.0);
+	Vec3 midVelocity = (0.0, 0.0, 0.0);
+
+	for (int i = 0; i < plist.size(); i++)
+	{
+		//Calculate acceleration and update velocity
+		PointMass p = (*plist[i]);
+		if (!p._isFixed()) {
+			acc = (forcesOnPointMasses[i] / m_fMass);
+			midVelocity = velPrevList[i] + (timestep/2 * acc);
+			midVelList.push_back(midVelocity);
+			accPrevList[i] = acc;
+			(*plist[i]).setPointVelocity(midVelocity);
+		}
+		else {
+			(*plist[i]).setPointVelocity((0.0, 0.0, 0.0));
+		}
+	}
+
+	//Compute elastic forces with mid pos and mid velocity
+	computeElasticForces();
+
+	//Compute new position
+	for (int i = 0; i < plist.size(); i++)
+	{
+		//Update new pos using old pos
+		PointMass p = (*plist[i]);
+		if (!p._isFixed()) {
+			newPos = posPrevList[i] + (timestep * midVelList[i]);
+			(*plist[i]).setPointPosition(newPos);
+		}
+	}
+
+	//Compute new velocity
+	for (int i = 0; i < plist.size(); i++)
+	{
+		//Calculate acceleration and update velocity
+		PointMass p = (*plist[i]);
+		if (!p._isFixed()) {
+			acc = (forcesOnPointMasses[i] / m_fMass);
+			newVelocity = velPrevList[i] + (timestep * acc);
+			accPrevList[i] = acc;
+			(*plist[i]).setPointVelocity(newVelocity);
+		}
+		else {
+			(*plist[i]).setPointVelocity((0.0, 0.0, 0.0));
+		}
+	}
 
 }
 
