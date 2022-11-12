@@ -40,6 +40,9 @@ void MassSpringSystemSimulator::initUI(DrawingUtilitiesClass* DUC)
 	TwAddVarRW(DUC->g_pTweakBar, "Integrator", TW_TYPE_INTEGRATOR, &this->m_iIntegrator, "");
 
 	TwAddVarRW(DUC->g_pTweakBar, "Gravity", TW_TYPE_BOOLCPP, &this->_enableGraviy, "");
+	TwAddVarRW(DUC->g_pTweakBar, "Gravity_x", TW_TYPE_DOUBLE, &this->_gravity.x, "");
+	TwAddVarRW(DUC->g_pTweakBar, "Gravity_y", TW_TYPE_DOUBLE, &this->_gravity.y, "");
+	TwAddVarRW(DUC->g_pTweakBar, "Gravity_z", TW_TYPE_DOUBLE, &this->_gravity.z, "");
 	TwAddVarRW(DUC->g_pTweakBar, "Collision", TW_TYPE_BOOLCPP, &this->_enableCollision, "");
 }
 
@@ -135,7 +138,6 @@ void MassSpringSystemSimulator::notifyCaseChanged(int testCase)
 
 void MassSpringSystemSimulator::externalForcesCalculations(float timeElapsed)
 {
-	// Apply the mouse deltas to g_vfMovableObjectPos (move along cameras view plane)
 	Point2D mouseDiff;
 	mouseDiff.x = m_trackmouse.x - m_oldtrackmouse.x;
 	mouseDiff.y = m_trackmouse.y - m_oldtrackmouse.y;
@@ -145,7 +147,7 @@ void MassSpringSystemSimulator::externalForcesCalculations(float timeElapsed)
 		Mat4 ViewInv = View.inverse();
 
 		Mat4 Proj = Mat4(DUC->g_camera.GetProjMatrix());
-		Mat4 ProjInv = ProjInv.inverse();
+		Mat4 ProjInv = Proj.inverse();
 
 		float mx = -1 + 2 * (float)m_trackmouse.x / DUC->g_windowSize[0];
 		float my = 1 - 2 * (float)m_trackmouse.y / DUC->g_windowSize[1];
