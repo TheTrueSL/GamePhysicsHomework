@@ -141,14 +141,11 @@ void MassSpringSystemSimulator::externalForcesCalculations(float timeElapsed)
 	mouseDiff.y = m_trackmouse.y - m_oldtrackmouse.y;
 	if ((mouseDiff.x) != 0 || (mouseDiff.y) != 0)
 	{
-		Mat4 modelViewInv = Mat4(DUC->g_camera.GetWorldMatrix() *
-			DUC->g_camera.GetViewMatrix());
-		modelViewInv = modelViewInv.inverse();
-
-		Mat4 ProjInv = Mat4(DUC->g_camera.GetProjMatrix());
-		ProjInv = ProjInv.inverse();
-
 		Mat4 View = Mat4(DUC->g_camera.GetViewMatrix());
+		Mat4 ViewInv = View.inverse();
+
+		Mat4 Proj = Mat4(DUC->g_camera.GetProjMatrix());
+		Mat4 ProjInv = ProjInv.inverse();
 
 		float mx = -1 + 2 * (float)m_trackmouse.x / DUC->g_windowSize[0];
 		float my = 1 - 2 * (float)m_trackmouse.y / DUC->g_windowSize[1];
@@ -165,13 +162,13 @@ void MassSpringSystemSimulator::externalForcesCalculations(float timeElapsed)
 		XMVECTOR w_vector1 = XMVectorSplatW(view1);
 		view1 = XMVectorDivide(view1, w_vector1);
 		
-		Vec3 viewOrigin = View.transformVector(_dragOrigin);
+		Vec3 viewDragOrigin = View.transformVector(_dragOrigin);
 
 		Vec3 ray = (view1 - view0);
 		normalize(ray);
 
-		Vec3 viewdDragPoint = ray * viewOrigin.z;
-		_dragPoint = modelViewInv.transformVector(viewdDragPoint);
+		Vec3 viewDragPoint = ray * norm(viewDragOrigin);
+		_dragPoint = ViewInv.transformVector(viewDragPoint);
 
 		if (_dragPointMassIndex != -1 && _points[_dragPointMassIndex]._isFixed) {
 			_points[_dragPointMassIndex]._position = _dragPoint;
@@ -584,8 +581,8 @@ bool MassSpringSystemSimulator::collisionPLane(
 				float halfDot = std::min(velDot, 0.0f);
 				pOut._velocity = (pIn._velocity - halfDot * n);
 
-				float bounciness = 0.0f;
-				float J = -pOut._mass * (1 + bounciness) * halfDot;
+	
+				float J = -pOut._mass * halfDot;
 				pOut._force = J / (deltaTime + epsilon) * (n) + (-friction * (pIn._velocity - n * velDot));
 
 				isCollided = true;
