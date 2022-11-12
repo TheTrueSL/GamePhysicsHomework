@@ -19,6 +19,7 @@ public:
 	//Getters
 	Vec3 getPointPosition();
 	Vec3 getPointVelocity();
+	bool _isFixed();
 
 private:
 	//Data Attributes

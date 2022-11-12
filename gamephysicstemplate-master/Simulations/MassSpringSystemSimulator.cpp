@@ -6,7 +6,7 @@ MassSpringSystemSimulator::MassSpringSystemSimulator()
 	m_fMass = 0;
 	m_fStiffness = 0;
 	m_fDamping = 0;
-	m_iIntegrator = -1;
+	m_iIntegrator = 0;
 	m_steps = 0;
 	reset();
 }
@@ -19,13 +19,13 @@ MassSpringSystemSimulator::~MassSpringSystemSimulator()
 	for (int i = 0; i < plist.size(); i++) {
 		delete plist[i];
 	}
-
 	slist.clear();
 	plist.clear();
+	forcesOnPointMasses.clear();
 }
 
 const char* MassSpringSystemSimulator::getTestCasesStr() {
-	return "Demo 1,Demo 2,Demo 3,Demo 4";
+	return "Simple Demo, Complex Demo";
 }
 
 void MassSpringSystemSimulator::initUI(DrawingUtilitiesClass* DUC)
@@ -35,11 +35,10 @@ void MassSpringSystemSimulator::initUI(DrawingUtilitiesClass* DUC)
 		"Euler, Leapfrog, Midpoint");
 	switch (m_iTestCase)
 	{
-	case 0:break;
+	case 0:
 		TwAddVarRW(DUC->g_pTweakBar, "Integrator", TW_TYPE_INTEGRATOR, &this->m_iIntegrator, "");
-	case 1:break;
-	case 2:break;
-	case 3:
+		break;
+	case 1:
 		TwAddVarRW(DUC->g_pTweakBar, "Integrator", TW_TYPE_INTEGRATOR, &this->m_iIntegrator, "");
 		TwAddVarRW(DUC->g_pTweakBar, "Mass", TW_TYPE_FLOAT, &m_fMass, "min=0.01 step=0.01");
 		TwAddVarRW(DUC->g_pTweakBar, "Stiffness", TW_TYPE_FLOAT, &m_fStiffness, "min=1 step=1");
@@ -60,6 +59,10 @@ void MassSpringSystemSimulator::reset() {
 
 	slist.clear();
 	plist.clear();
+	forcesOnPointMasses.clear();
+	accPrevList.clear();
+	posPrevList.clear();
+	velPrevList.clear();
 
 	m_externalForce = (0, 0, 0);
 	m_mouse.x = m_mouse.y = 0;
@@ -98,22 +101,13 @@ void MassSpringSystemSimulator::notifyCaseChanged(int testCase)
 	switch (m_iTestCase)
 	{
 	case 0:
-		cout << "DEMO 1 Information\n";
-		loadDemo1Setup();
+		cout << "SIMPLE DEMO Information\n";
+		loadSimpleDemo();
+		setIntegrator(0);
 		break;
 	case 1:
-		cout << "DEMO 2 Information\n";
-		setIntegrator(0);
-		loadDemo2Setup();
-		break;
-	case 2:
-		cout << "DEMO 3 Information\n";
-		setIntegrator(2);
-		loadDemo3Setup();
-		break;
-	case 3:
-		cout << "DEMO 4 Information\n";
-		loadDemo4Setup();
+		cout << "COMPLEX DEMO Information\n";
+		loadComplexDemo();
 		break;
 	default:
 		cout << "Empty Test!\n";
@@ -128,20 +122,21 @@ void MassSpringSystemSimulator::externalForcesCalculations(float timeElapsed)
 
 void MassSpringSystemSimulator::simulateTimestep(float timeStep)
 {
+	if (m_steps == 0)
+		return;
 	// Handle different integration methods
 	switch (m_iIntegrator)
 	{
 	case 0:
-		//integrateEuler(timeStep);
+		integrateEuler(timeStep);
 		break;
 	case 1:
-		//integrateLeapfrog(timeStep);
 		break;
 	case 2:
 		//integrateMidpoint(timeStep);
 		break;
 	default:
-		//integrateEuler(timeStep);
+		integrateEuler(timeStep);
 		break;
 	}
 
@@ -184,6 +179,10 @@ void MassSpringSystemSimulator::setDampingFactor(float damping) {
 int MassSpringSystemSimulator::addMassPoint(Vec3 position, Vec3 Velocity, bool isFixed) {
 	PointMass *p = new PointMass(m_fMass, position, Velocity, isFixed);
 	plist.push_back(p);
+	posPrevList.push_back(position);
+	velPrevList.push_back(Velocity);
+	forcesOnPointMasses.push_back((0.0, 0.0, 0.0));
+	accPrevList.push_back((0.0, 0.0, 0.0));
 	return plist.size() - 1;
 }
 
@@ -214,32 +213,26 @@ void MassSpringSystemSimulator::applyExternalForce(Vec3 force) {
 
 //demo functions
 
-void MassSpringSystemSimulator::loadDemo1Setup() {
+void MassSpringSystemSimulator::loadSimpleDemo() {
 	reset();
-
 	//Initialize point masses
-	Vec3 p0(0, 0, 0);
-	Vec3 p1(0, 2, 0);
-	Vec3 v0(-1, 0, 0);
-	Vec3 v1(1, 0, 0);
+	Vec3 p0(0.0, 0.0, 0.0);
+	Vec3 p1(0.0, 2.0, 0.0);
+	Vec3 v0(-1.0, 0.0, 0.0);
+	Vec3 v1(1.0, 0.0, 0.0);
 	
-	setStiffness(40);
-	setStep(1);
+	setStiffness(40.0);
+
+	//Step size can be changed from here!
+	setStep(1000);
+	setMass(10.0);
 	setDampingFactor(0);
 	addMassPoint(p0, v0, false);
 	addMassPoint(p1, v1, false);
-	addSpring(0, 1, 1);
+	addSpring(0.0, 1.0, 1.0);
 }
 
-void MassSpringSystemSimulator::loadDemo2Setup() {
-
-}
-
-void MassSpringSystemSimulator::loadDemo3Setup() {
-
-}
-
-void MassSpringSystemSimulator::loadDemo4Setup() {
+void MassSpringSystemSimulator::loadComplexDemo() {
 
 }
 
@@ -248,10 +241,83 @@ void MassSpringSystemSimulator::setStep(int stepS)
 	m_steps = stepS;
 }
 
+// Internal force calculations for all points in simulation - Hooke's Law
 void MassSpringSystemSimulator::computeElasticForces() {
+	//Compute forces for all springs
+	for (int i = 0; i < slist.size(); i++) {
+		int p0 = (*slist[i]).getFirstPointInd();
+		int p1 = (*slist[i]).getSecondPointInd();
+		
+		PointMass point0 = (*plist[p0]);
+		PointMass point1 = (*plist[p1]);
+		
+		//Apply Hooke's Law
+		float pointLength = norm(point0.getPointPosition() - point1.getPointPosition());
+		Vec3 direction = (point0.getPointPosition() - point1.getPointPosition()) / pointLength;
+		Vec3 force = -m_fStiffness * (pointLength - (*slist[i]).getRestLength()) * direction;
 
+		//Accumulate applied forces to each point mass and save it
+		forcesOnPointMasses[p0] += force;
+		forcesOnPointMasses[p1] += - force;
+		cout << "checkpointsss" << endl;
+	}
+}
+
+//Update velocities of present point masses
+void MassSpringSystemSimulator::updateVelocityEuler(float timeStep) {
+	
+	Vec3 acc = (0.0, 0.0, 0.0);
+	Vec3 newVelocity = (0.0, 0.0, 0.0);
+	for (int i = 0; i < plist.size(); i++)
+	{
+		//Calculate acceleration and update velocity
+		PointMass p = (*plist[i]);
+		if (!p._isFixed()) {
+			acc = (forcesOnPointMasses[i] / m_fMass);
+			newVelocity = velPrevList[i] + (timeStep * acc);
+			accPrevList[i] = acc;
+			(*plist[i]).setPointVelocity(newVelocity);
+			velPrevList[i] = newVelocity;
+		}
+		else {
+			(*plist[i]).setPointVelocity((0.0, 0.0, 0.0));
+		}
+	}
+}
+
+//Update positions of present point masses
+void MassSpringSystemSimulator::updatePositionEuler(float timeStep) {
+	Vec3 newPos = (0.0, 0.0, 0.0);
+	for (int i = 0; i < plist.size(); i++)
+	{
+		//Update new pos using old pos
+		PointMass p = (*plist[i]);
+		if (!p._isFixed()) {
+			newPos = posPrevList[i] + (timeStep * velPrevList[i]);
+			posPrevList[i] = newPos;
+			(*plist[i]).setPointPosition(newPos);
+		}
+	}
 }
 
 // Integration Methods
+void MassSpringSystemSimulator::integrateEuler(float timestep) {
+	computeElasticForces();
+	updatePositionEuler(timestep);
+	updateVelocityEuler(timestep);
+
+	//Reset forces for next time step
+	for (int i = 0; i < forcesOnPointMasses.size(); i++) {
+		forcesOnPointMasses[i] = (0.0, 0.0, 0.0);
+	}
+}
+
+void MassSpringSystemSimulator::integrateMidpoint(float timestep) {
+
+}
+
+void MassSpringSystemSimulator::integrateLeapFrog(float timestep) {
+
+}
 
 

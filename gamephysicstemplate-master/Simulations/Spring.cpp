@@ -37,3 +37,8 @@ int Spring::getSecondPointInd()
 {
 	return p1;
 }
+
+float Spring::getRestLength()
+{
+	return L;
+}

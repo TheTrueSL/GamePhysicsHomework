@@ -17,6 +17,7 @@ public:
 
 	int getFirstPointInd();
 	int getSecondPointInd();
+	float getRestLength();
 
 private:
 	float k;

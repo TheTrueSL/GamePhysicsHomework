@@ -37,6 +37,11 @@ Vec3 PointMass::getPointVelocity()
 	return pointVelocity;
 }
 
+bool PointMass::_isFixed()
+{
+	return isPointFixed;
+}
+
 void PointMass::setPointVelocity(Vec3 newVelocity)
 {
 	pointVelocity = newVelocity;

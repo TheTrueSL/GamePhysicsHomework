@@ -43,12 +43,16 @@ public:
 	void applyExternalForce(Vec3 force);
 
 	//Additional Functions
-	void loadDemo1Setup();
-	void loadDemo2Setup();
-	void loadDemo3Setup();
-	void loadDemo4Setup();
+	void loadSimpleDemo();
+	void loadComplexDemo();
 	void setStep(int stepS);
 	void computeElasticForces();
+	void updateVelocityEuler(float timeStep);
+	void updatePositionEuler(float timeStep);
+
+	void integrateEuler(float timeStep);
+	void integrateMidpoint(float timeStep);
+	void integrateLeapFrog(float timeStep);
 	
 	// Do Not Change
 	void setIntegrator(int integrator) {
@@ -71,6 +75,10 @@ private:
 	//Additional Attributes
 	vector<Spring*> slist;
 	vector<PointMass*> plist;
+	vector<Vec3> forcesOnPointMasses;
+	vector<Vec3> accPrevList;
+	vector<Vec3> posPrevList;
+	vector<Vec3> velPrevList;
 	int m_steps;
 
 };
