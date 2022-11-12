@@ -72,11 +72,18 @@ void MassSpringSystemSimulator::reset() {
 
 void MassSpringSystemSimulator::drawFrame(ID3D11DeviceContext* pd3dImmediateContext)
 {
-	const Vec3 pointScale = 0.05 * Vec3(1, 1, 1);
+	const float pointScale = 0.01f;
+	const Vec3 lineColor0 = Vec3(1., 1., 1.);
+	const Vec3 lineColor1 = Vec3(1., 0., 0.);
 
 	// Draw Point Masses
 	for (int i = 0; i < plist.size(); i++) {
-		DUC->setUpLighting(Vec3(), 0.4 * Vec3(1, 1, 1), 100, 0.6 * Vec3(1, 0, 0));
+		if ((*plist[i])._isFixed()) {
+			DUC->setUpLighting(Vec3(), Vec3(1, 1, 1), 100, Vec3(1, 0, 0));
+		}
+		else {
+			DUC->setUpLighting(Vec3(), Vec3(1, 1, 1), 100, Vec3(1, 1, 1));
+		}
 		DUC->drawSphere((*plist[i]).getPointPosition(), pointScale);
 	}
 
@@ -89,7 +96,7 @@ void MassSpringSystemSimulator::drawFrame(ID3D11DeviceContext* pd3dImmediateCont
 		PointMass pm0 = *plist[p0];
 		PointMass pm1 = *plist[p1];
 
-		DUC->drawLine(pm0.getPointPosition(), Vec3(0, 1, 0), pm1.getPointPosition(), Vec3(1, 1, 1));
+		DUC->drawLine(pm0.getPointPosition(), lineColor0, pm1.getPointPosition(), lineColor1);
 	}
 	DUC->endLine();
 }
@@ -207,7 +214,24 @@ Vec3 MassSpringSystemSimulator::getVelocityOfMassPoint(int index) {
 }
 
 void MassSpringSystemSimulator::applyExternalForce(Vec3 force) {
+	Point2D mouseDiff;
+	mouseDiff.x = m_trackmouse.x - m_oldtrackmouse.x;
+	mouseDiff.y = m_trackmouse.y - m_oldtrackmouse.y;
+	if (mouseDiff.x != 0 || mouseDiff.y != 0)
+	{
+		Mat4 worldViewInv = Mat4(DUC->g_camera.GetWorldMatrix() * DUC->g_camera.GetViewMatrix());
+		worldViewInv = worldViewInv.inverse();
+		Vec3 inputView = Vec3((float)mouseDiff.x, (float)-mouseDiff.y, 0);
+		Vec3 inputWorld = worldViewInv.transformVectorNormal(inputView);
+		float inputScale = 0.001f;
+		inputWorld = inputWorld * inputScale;
 
+		for (int i = 0; i < plist.size(); i++) {
+			if ((*plist[i]).getPointPosition().x == m_oldtrackmouse.x && (*plist[i]).getPointPosition().y == m_oldtrackmouse.y && !(*plist[i])._isFixed()) {
+				(*plist[i]).setPointPosition((*plist[i]).getPointPosition() + inputWorld);
+			}
+		}
+	}
 }
 
 //demo functions
@@ -232,7 +256,22 @@ void MassSpringSystemSimulator::loadSimpleDemo() {
 }
 
 void MassSpringSystemSimulator::loadComplexDemo() {
+	setStiffness(40.0);
 
+	//Step size can be changed from here!
+	setStep(1000);
+	setMass(10.0);
+	setDampingFactor(0);
+	
+	//Initialize point masses as cloth
+	Vec3 zeros = (0.0, 0.0, 0.0);
+	Vec3 p0(0.0, 0.0, 0.0);
+	for (int i = 0; i < 4; i++) {
+		for (int j = 0; j < 4; j++) {
+			p0 = (0, i * 0.1, j * 0.1);
+			addMassPoint(p0, zeros, false);
+		}
+	}
 }
 
 void MassSpringSystemSimulator::setStep(int stepS)
@@ -387,7 +426,9 @@ void MassSpringSystemSimulator::integrateMidpoint(float timestep) {
 }
 
 void MassSpringSystemSimulator::integrateLeapFrog(float timestep) {
-
+	computeElasticForces();
+	updateVelocityEuler(timestep);
+	updatePositionEuler(timestep);
 }
 
 
