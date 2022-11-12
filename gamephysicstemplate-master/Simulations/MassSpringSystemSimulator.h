@@ -176,9 +176,11 @@ private:
 	Vec3 _dragOrigin;
 	Vec3 _dragPoint;
 
+	float _externalSpringForce;
 	Vec3 _gravity;
 	bool _enableGraviy;
 	bool _enableCollision;
+	bool _enableFakeImpact;
 	bool _enableExternalSpringForce;
 
 	// demo
