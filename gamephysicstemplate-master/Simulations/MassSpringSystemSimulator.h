@@ -32,14 +32,14 @@ private:
 	float m_fDamping;
 	bool m_bIsFixed;
 };
-class MassSpringSystemSimulator:public Simulator{
+class MassSpringSystemSimulator :public Simulator {
 public:
 	// Construtors
 	MassSpringSystemSimulator();
-	
+
 	// UI Functions
-	const char * getTestCasesStr();
-	void initUI(DrawingUtilitiesClass * DUC);
+	const char* getTestCasesStr();
+	void initUI(DrawingUtilitiesClass* DUC);
 	void reset();
 	void drawFrame(ID3D11DeviceContext* pd3dImmediateContext);
 	void notifyCaseChanged(int testCase);
@@ -60,7 +60,8 @@ public:
 	Vec3 getPositionOfMassPoint(int index);
 	Vec3 getVelocityOfMassPoint(int index);
 	void applyExternalForce(Vec3 force);
-	
+	void handleCollisions();
+	bool checkCollision(int index);
 	void clearForces(int index);
 	void addExternalForce(int index);
 	void addDampingForce(int index);
@@ -94,7 +95,7 @@ private:
 
 	vector<Point> m_points;
 	vector<Spring> m_springs;
-	
+
 	// UI Attributes
 	Vec3 m_externalForce;
 	Point2D m_mouse;
