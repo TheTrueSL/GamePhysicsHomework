@@ -502,7 +502,50 @@ void MassSpringSystemSimulator::createRope(const Vec3& start, const Vec3& end, i
 
 void MassSpringSystemSimulator::createCloth(const Vec3& start, const Vec3& end, int samples0, int samples1)
 {
+	const int CLOTH_SIZE = 5;
+	const float UNIT_LENGTH = 0.1;
+	vector<vector<int>> p;
+	setMass(1.0);
+	setDampingFactor(1.0);
+	for (int x = 0; x < CLOTH_SIZE; x++) {
+		vector<int> row;
+		for (int z = 0; z < CLOTH_SIZE; z++) {
+			bool isFixed = false;
+			Vec3 v = Vec3(0, 0, 0);
+			float y = 0.5;
+			if ((x == 0 && z == 0) || (x == CLOTH_SIZE - 1 && z == 0) || (x == 0 && z == CLOTH_SIZE - 1) || (x == CLOTH_SIZE - 1 && z == CLOTH_SIZE - 1)) {
+				isFixed = true;
+				// y = 0.5;
+				if (x == 0 && z == 0) {
+					//isFixed = false;
+					// v = Vec3(-10, 10, -10);
+				}
+			}
+			row.push_back(addMassPoint(Vec3(x * UNIT_LENGTH - (CLOTH_SIZE / 2) * UNIT_LENGTH, y, z * UNIT_LENGTH - (CLOTH_SIZE / 2) * UNIT_LENGTH), v, isFixed));
+		}
+		p.push_back(row);
+	}
 
+	// Structural
+	for (int x = 0; x < CLOTH_SIZE; x++) {
+		for (int z = 0; z < CLOTH_SIZE; z++) {
+			setStiffness(40.0);
+			//STRUCTURAL
+			if (z + 1 < CLOTH_SIZE) addSpring(p[x][z], p[x][z + 1], UNIT_LENGTH);
+			if (x + 1 < CLOTH_SIZE) addSpring(p[x][z], p[x + 1][z], UNIT_LENGTH);
+
+			setStiffness(40.0);
+			//SHEAR	
+			if (x + 1 < CLOTH_SIZE && z + 1 < CLOTH_SIZE) addSpring(p[x][z], p[x + 1][z + 1], sqrt(pow(UNIT_LENGTH, 2) + pow(UNIT_LENGTH, 2)));
+			if (x - 1 >= 0 && z + 1 < CLOTH_SIZE) addSpring(p[x][z], p[x - 1][z + 1], sqrt(pow(UNIT_LENGTH, 2) + pow(UNIT_LENGTH, 2)));
+
+			setStiffness(40.0);
+			//FLEXION
+			if (x + 2 < CLOTH_SIZE) addSpring(p[x][z], p[x + 2][z], UNIT_LENGTH * 2.0);
+			if (z + 2 < CLOTH_SIZE) addSpring(p[x][z], p[x][z + 2], UNIT_LENGTH * 2.0);	
+
+		}
+	}
 }
 
 void MassSpringSystemSimulator::createBox(const Vec3& center, const float size)
