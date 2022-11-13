@@ -176,6 +176,10 @@ private:
 	Vec3 _dragOrigin;
 	Vec3 _dragPoint;
 
+	float _massScaler;
+	float _stiffnessScaler;
+	float _dampingScaler;
+
 	float _externalSpringForce;
 	Vec3 _gravity;
 	bool _enableGraviy;

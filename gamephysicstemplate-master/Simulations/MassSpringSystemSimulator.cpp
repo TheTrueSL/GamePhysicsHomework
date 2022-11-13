@@ -47,7 +47,10 @@ void MassSpringSystemSimulator::initUI(DrawingUtilitiesClass* DUC)
 	TwAddVarRW(DUC->g_pTweakBar, "Collision", TW_TYPE_BOOLCPP, &this->_enableCollision, "");
 	TwAddVarRW(DUC->g_pTweakBar, "FakeImpact", TW_TYPE_BOOLCPP, &this->_enableFakeImpact, "");
 	TwAddVarRW(DUC->g_pTweakBar, "ExternalForce", TW_TYPE_FLOAT, &this->_externalSpringForce, "");
-	
+
+	TwAddVarRW(DUC->g_pTweakBar, "MassScale", TW_TYPE_FLOAT, &this->_massScaler, "");
+	TwAddVarRW(DUC->g_pTweakBar, "SiffnessScale", TW_TYPE_FLOAT, &this->_stiffnessScaler, "");
+	TwAddVarRW(DUC->g_pTweakBar, "DampingScale", TW_TYPE_FLOAT, &this->_dampingScaler, "");
 }
 
 void MassSpringSystemSimulator::reset()
@@ -60,6 +63,10 @@ void MassSpringSystemSimulator::reset()
 	_pressedTimer = clock();
 	// UI Attributes
 	_externalSpringForce = 0;
+
+	_stiffnessScaler = 1.0f;
+	_massScaler = 1.0f;
+	_dampingScaler = 1.0f;
 
 	m_externalForce = Vec3();
 	m_mouse = Point2D();
@@ -470,16 +477,15 @@ void MassSpringSystemSimulator::loadComplexSetup()
 	this->setStiffness(40);
 	this->createRope(Vec3(-0.2, 0.4, 0), Vec3(-0.2, 0.025, 0), 3);
 
-	// cloth 0
-	this->setMass(1);
-	this->setStiffness(50);
-	this->createCloth(Vec3(-0.2, 0.4, 0.1), Vec3(0.2, 0.1, 0.1), 3, 4);
-
 	// box 0
 	this->setMass(0.8);
 	this->setStiffness(45);
 	this->createBox(Vec3(0, 0.3, 0), 0.08);
 
+	// cloth 0
+	this->setMass(1);
+	this->setStiffness(50);
+	this->createCloth(Vec3(-0.2, 0.4, 0.1), Vec3(0.2, 0.1, 0.1), 3, 4);
 }
 
 void MassSpringSystemSimulator::createRope(const Vec3& start, const Vec3& end, int samples)
@@ -542,7 +548,7 @@ void MassSpringSystemSimulator::createCloth(const Vec3& start, const Vec3& end, 
 			setStiffness(40.0);
 			//FLEXION
 			if (x + 2 < CLOTH_SIZE) addSpring(p[x][z], p[x + 2][z], UNIT_LENGTH * 2.0);
-			if (z + 2 < CLOTH_SIZE) addSpring(p[x][z], p[x][z + 2], UNIT_LENGTH * 2.0);	
+			if (z + 2 < CLOTH_SIZE) addSpring(p[x][z], p[x][z + 2], UNIT_LENGTH * 2.0);
 
 		}
 	}
@@ -602,11 +608,11 @@ bool MassSpringSystemSimulator::collisionResolve(
 {
 	bool isCollided = false;
 	
-	isCollided |= collisionPLane(deltaTime, points, Vec3(0, 1, 0), -0.5, 20, outPoints);
-	isCollided |= collisionPLane(deltaTime, points, Vec3(1, 0, 0), -0.5, 1, outPoints);
-	isCollided |= collisionPLane(deltaTime, points, Vec3(-1, 0, 0), -0.5, 1, outPoints);
-	isCollided |= collisionPLane(deltaTime, points, Vec3(0, 0, 1), -0.5, 1, outPoints);
-	isCollided |= collisionPLane(deltaTime, points, Vec3(0, 0, -1), -0.5, 1, outPoints);
+	isCollided |= collisionPLane(deltaTime, points, Vec3(0, 1, 0), -0.5, 10, outPoints);
+	isCollided |= collisionPLane(deltaTime, points, Vec3(1, 0, 0), -0.5, 0.1, outPoints);
+	isCollided |= collisionPLane(deltaTime, points, Vec3(-1, 0, 0), -0.5, 0.1, outPoints);
+	isCollided |= collisionPLane(deltaTime, points, Vec3(0, 0, 1), -0.5, 0.1, outPoints);
+	isCollided |= collisionPLane(deltaTime, points, Vec3(0, 0, -1), -0.5, 0.1, outPoints);
 
 	return isCollided;
 }
@@ -637,11 +643,10 @@ bool MassSpringSystemSimulator::collisionPLane(
 					float subtimestep =  abs(distance) / velnorm;
 					pOut._position = pIn._position + distance * vel;
 					pOut._velocity = parallelVel;
-;
 					float bounciness = 0.55;
-					float J = -pOut._mass * (bounciness)*velnorm * velDot;
+					float J = -(pOut._mass * _massScaler) * (bounciness) * velnorm * velDot;
 					pOut._force = (J / (deltaTime + epsilon)) * n + (-friction * parallelVel);
-					pOut._position += (pOut._velocity + pOut._force * subtimestep / pOut._mass) * subtimestep;
+					pOut._position += (pOut._velocity + pOut._force * subtimestep / (pOut._mass * _massScaler)) * subtimestep;
 				}
 				else {
 					pOut._position = pIn._position + (offset - d + epsilon) * n;
@@ -678,7 +683,7 @@ void MassSpringSystemSimulator::computeInternalForce(
 			Vec3 v0 = p0._position - p1._position;
 			float length = normalize(v0);
 			// forces
-			Vec3 f0 = -s._stiffness * (length - s._restLength) * v0
+			Vec3 f0 = -(s._stiffness * _stiffnessScaler) * (length - s._restLength) * v0
 				-s._damping * dot(p0._velocity - p1._velocity, v0) * v0;
 			forces[pid0]._force += f0;
 			forces[pid1]._force += -f0;
@@ -692,7 +697,7 @@ void MassSpringSystemSimulator::dampingForce(const std::vector<PointMass>& point
 	// damping forces
 	for (int pid = 0; pid < POINT_SIZE; pid++) {
 		const PointMass& p = points[pid];
-		forces[pid]._force += -p._damping * p._velocity;
+		forces[pid]._force += -p._damping * _dampingScaler * p._velocity;
 	}
 }
 
@@ -777,7 +782,7 @@ void MassSpringSystemSimulator::updateVelocity(
 		PointMass& p = outPoints[pid];
 		if (!p._isFixed)
 		{
-			p._acceleration = pForce._force / p._mass;
+			p._acceleration = pForce._force / (p._mass * _massScaler);
 			p._velocity = pVel._velocity + p._acceleration * timeStep;
 		}
 		else {
