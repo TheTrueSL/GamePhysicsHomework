@@ -588,15 +588,20 @@ bool MassSpringSystemSimulator::collisionPLane(
 			if (d < offset && velDot < 0) {
 				Vec3 parallelVel = pIn._velocity - n * velnorm * velDot;
 
-				pOut._position = pIn._position + (offset - d + epsilon) * vel / velDot;
+				float distance = (offset - d + epsilon) / velDot;
 
 				if (_enableFakeImpact) {
+					float subtimestep =  abs(distance) / velnorm;
+					pOut._position = pIn._position + distance * vel;
 					pOut._velocity = parallelVel;
-					float bounciness = 0.25;
+;
+					float bounciness = 0.55;
 					float J = -pOut._mass * (bounciness)*velnorm * velDot;
 					pOut._force = (J / (deltaTime + epsilon)) * n + (-friction * parallelVel);
+					pOut._position += (pOut._velocity + pOut._force * subtimestep / pOut._mass) * subtimestep;
 				}
 				else {
+					pOut._position = pIn._position + (offset - d + epsilon) * n;
 					pOut._velocity = parallelVel;
 				}
 
