@@ -8,6 +8,47 @@
 #define MIDPOINT 2
 // Do Not Change
 
+class Masspoint {
+	friend class MassSpringSystemSimulator;
+public:
+	Vec3 _position;
+	Vec3 _velocity;
+	Vec3 _force;
+	float _mass;
+	float _damping;
+	bool _isFixed = fixed;
+
+	Masspoint(const Vec3 initialPosition, const Vec3 initialVelocity, float mass, float damping, bool fixed)
+	{
+		_position = initialPosition;
+		_velocity = initialVelocity;
+		_mass = mass;
+		_damping = damping;
+		_isFixed = fixed;
+		_force = (0, 0, 0);
+	}
+
+};
+
+class Spring {
+	friend class MassSpringSystemSimulator;
+public:
+	int _pointAId;
+	int _pointBId;
+	float _stiffness;
+	float _springInitialLength;
+	float _springCurrentLength;
+
+	Spring(int pointAId, int pointBId, float stiffness, float length)
+	{
+		_pointAId = pointAId;
+		_pointBId = pointBId;
+		_stiffness = stiffness;
+		_springInitialLength = length;
+		_springCurrentLength = length;
+	}
+
+};
 
 class MassSpringSystemSimulator :public Simulator {
 public:
@@ -44,6 +85,9 @@ public:
 	void updatePosition(int pointIndex, float timeStep);
 	void updateVelocity(int pointIndex, float timeStep);
 	void setUpOne();
+	void setUpTwo();
+	void setUpThree();
+	void setUpFour();
 
 	// Do Not Change
 	void setIntegrator(int integrator) {
@@ -62,5 +106,10 @@ private:
 	Point2D m_mouse;
 	Point2D m_trackmouse;
 	Point2D m_oldtrackmouse;
+
+	//Additional Attributes
+	Vec3 _gravity;
+	vector<Masspoint> _masspoints;
+	vector<Spring> _springs;
 };
 #endif
