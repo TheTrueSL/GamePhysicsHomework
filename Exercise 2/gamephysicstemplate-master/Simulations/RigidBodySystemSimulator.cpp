@@ -755,10 +755,7 @@ void RigidBodySystemSimulator::collisionPLane(
 			Vec3 accVel(0, 0, 0);
 			Vec3 accAng(0, 0, 0);
 
-			float sumDist = 0;
-			for (int cid = 0; cid < hits.size(); cid++) {
-				sumDist += hits[cid].contactDistance;
-			}
+			float weight = 1.0 / hits.size();
 
 			float iM0 = body._invMass;
 			Mat3 iI0 = body._worldInvInertia;
@@ -773,8 +770,7 @@ void RigidBodySystemSimulator::collisionPLane(
 				Vec3 parallelDir = parallelVel;
 				double parallelnorm = normalize(parallelDir);
 
-				float invDistWeight = (hit.contactDistance / sumDist);
-				Vec3 frictionForce = invDistWeight * min(max(friction * dot(body._force, n), 
+				Vec3 frictionForce = weight * min(max(friction * dot(body._force, n),
 					-body._mass * parallelnorm / (deltaTime + epsilon)), 0.0) * parallelDir;
 				body.addExternalForce(frictionForce, hit.contactPoint);
 
@@ -784,10 +780,10 @@ void RigidBodySystemSimulator::collisionPLane(
 						(iM0 + dot(
 							cross(iI0.dot(cross(x0, n)), x0), n));
 					const Vec3 Jn = J * n;
-					accVel += invDistWeight * Jn * iM0;
-					accAng += invDistWeight * cross(x0, Jn);
+					accVel += weight * Jn * iM0;
+					accAng += weight * cross(x0, Jn);
 				}
-				accPos += invDistWeight * n * hit.contactDistance;
+				accPos += weight * n * hit.contactDistance;
 			}
 
 			if ((normNoSqrt(accVel) + normNoSqrt(accAng)) > 1e-7) {
@@ -914,10 +910,12 @@ void RigidBodySystemSimulator::collisionRigidBodies(const float& deltaTime)
 								cross(iI1.dot(cross(x1, n)), x1), n));
 						const Vec3 Jn = J * n;
 						if (!b0._isFixed) {
+							b0._position += 0.5 * hit.depth * hit.normalWorld;
 							b0._velocity += Jn * iM0;
 							b0._angularMomentum += cross(x0, Jn);
 						}
 						if (!b1._isFixed) {
+							b1._position -= 0.5 * hit.depth * hit.normalWorld;
 							b1._velocity -= Jn * iM1;
 							b1._angularMomentum -= cross(x1, Jn);
 						}
