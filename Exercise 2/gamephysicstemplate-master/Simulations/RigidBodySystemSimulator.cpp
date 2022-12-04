@@ -6,6 +6,7 @@
 
 namespace {
 	const Vec3 ZERO_VEC(0, 0, 0);
+	const float EPS = 1e-6;
 }
 
 RigidBodySystemSimulator::RigidBodySystemSimulator()
@@ -26,7 +27,7 @@ const char* RigidBodySystemSimulator::getTestCasesStr()
 {
 	// custom case name, split with comma","
 	// notifyCaseChanged(int index) will be called when case is changed by user.
-	return "Demo1(simple 1 step), Demo2(single), Demo3(two body), Demo4(complex)";
+	return "Demo1(simple 1 step), Demo2(single), Demo3(two body), Demo4(complex), Test";
 }
 
 void RigidBodySystemSimulator::initUI(DrawingUtilitiesClass* DUC)
@@ -163,6 +164,10 @@ void RigidBodySystemSimulator::notifyCaseChanged(int testCase)
 	case 3: //Demo4(complex)
 		_printSteps = -1;
 		loadComplexSetup();
+		break;
+	case 4: //Demo4(complex)
+		_printSteps = -1;
+		loadTestSetup();
 		break;
 	default:
 		break;
@@ -583,13 +588,35 @@ void RigidBodySystemSimulator::loadComplexSetup()
 	//this->createRope(1, springDamping, 40, Vec3(-0.2, 0.4, 0), Vec3(-0.2, 0.025, 0), 3);
 	// box 0
 	this->createBox(1, 0.5, 30, Vec3(0, 0.25, 0), 0.08);
-	addRigidBody(Vec3(0, -1.0, 0), Vec3(0.3, 0.1, 0.3), 5, false);
+	addRigidBody(Vec3(0, -0.4, 0), Vec3(0.3, 0.1, 0.3), 5, false);
 	addRigidBody(Vec3(0, 0.1, 0), Vec3(0.24, 0.05, 0.24), 3, false);
 	addRigidBody(Vec3(0, 0.0, 0), Vec3(0.25, 0.11, 0.25), 4, false);
 	addRigidBody(Vec3(0, 0.7, 0), Vec3(0.22, 0.1, 0.22), 3, false);
 	addRigidBody(Vec3(0, 1.0, 0), Vec3(0.22, 0.22, 0.22), 5, false);
 	// cloth 0
 	this->createCloth(0.05, 0.85, 15, Vec3(-0.2, 0.4, 0.1), Vec3(0.2, 0.1, 0.1), 3, 4);
+}
+
+void RigidBodySystemSimulator::loadTestSetup() {
+	reset();
+
+	_enableCollision = true;
+	_enableWallCollision = false;
+	_enableFloorCollision = false;
+	_enableGraviy = true;
+
+	_linearDamping = 0.18;
+	_angularDamping = 0.05;
+
+	_externalSpringForce = 3.5;
+
+	Vec3 gravity(0, -0.065, 0);
+
+	_gravity = gravity;
+	// box 0
+	addRigidBody(Vec3(0, -1.0, 0), Vec3(10, 0.2, 10), 5, true);
+	addRigidBody(Vec3(1.5, 0.1, 0), Vec3(0.24, 0.24, 0.24), 3, false);
+	setOrientationOf(1, Quat(Vec3(1, 1, 0), 0.51 * DirectX::XM_PI));
 }
 
 void RigidBodySystemSimulator::createRope(float mass, float damping, float stiffness, const Vec3& start, const Vec3& end, int samples)
@@ -707,7 +734,7 @@ void RigidBodySystemSimulator::collisionResolve(
 {
 	collisionRigidBodies(deltaTime);
 	if (_enableFloorCollision) {
-		collisionPLane(deltaTime, Vec3(0, 1, 0), -0.5, 10);
+		collisionPLane(deltaTime, Vec3(0, 1, 0), -0.5, 43);
 	}
 	if (_enableWallCollision) {
 		collisionPLane(deltaTime, Vec3(1, 0, 0), -0.5, 0.1);
@@ -720,30 +747,43 @@ void RigidBodySystemSimulator::collisionPLane(
 	const float& deltaTime,
 	const Vec3& n, const float offset, const float friction)
 {
+	const float dynFriction = friction * 0.8;
 	const int POINT_SIZE = _points.size();
 	const int BODY_SIZE = _rigidbodies.size();
-	const float epsilon = 1e-9;
 
 	for (int pid = 0; pid < POINT_SIZE; pid++) {
 		PointMass& p = _points[pid];
 		if (p._isBullet)
 			break;
 		if (!p._isFixed) {
-			float d = dot(p._position, n);
-			Vec3 vel = p._velocity;
-			float velnorm = normalize(vel);
-			float velDot = dot(vel, n);
-			if (d < offset && velDot < 0) {
-				Vec3 parallelVel = p._velocity - n * velnorm * velDot;
-				Vec3 parallelDir = parallelVel;
-				double parallelnorm = normalize(parallelDir);
-				float distance = (offset - d + epsilon) / velDot;
-				p._position = p._position + distance * vel;
-				p._velocity = parallelVel;
-				const float bounciness = 0.55;
-				float J = -p._mass * (bounciness) * velnorm * velDot;
-				p._force = (J / (deltaTime + epsilon)) * n 
-					+ min(max(friction * dot(p._force, n), -p._mass * parallelnorm / (deltaTime + epsilon)), 0.0) * parallelDir;
+			float dist = dot(p._position, n) - p._radius;
+			Vec3 vel = p._velocity - (_enableGraviy ? dot(_gravity, n) * deltaTime : 0) * n;
+			float vdot = dot(vel, n);
+			if (dist < offset && vdot < 0) {
+				const float c = 0;
+				float J = (-(1 + c) * vdot) * p._mass;
+				const Vec3 Jn = J * n;
+
+				Vec3 parallelDir = vel - n * vdot;
+				float parallelnorm = normalize(parallelDir);
+
+				float fNormal = dot(p._force, n);
+				if (fNormal < 0) {
+					Vec3 tangent = p._force - n * fNormal;
+					float fTangent = normalize(tangent);
+					if (parallelnorm > EPS) {
+						p._force -= dynFriction * parallelnorm * -fNormal * parallelDir;
+					}
+					else {
+						// static
+						p._force -= min(fTangent, friction * -fNormal) * tangent;
+						p._velocity -= dot(p._velocity, parallelDir) * parallelDir;
+					}
+				}
+
+				p._position += (offset - dist) * n;
+				p._velocity += Jn * p._invMass;
+				
 			}
 		}
 	}
@@ -755,7 +795,7 @@ void RigidBodySystemSimulator::collisionPLane(
 			Vec3 accVel(0, 0, 0);
 			Vec3 accAng(0, 0, 0);
 
-			float weight = 1.0 / hits.size();
+			const float weight = 1.0;
 
 			float iM0 = body._invMass;
 			Mat3 iI0 = body._worldInvInertia;
@@ -763,16 +803,30 @@ void RigidBodySystemSimulator::collisionPLane(
 				Contact& hit = hits[cid];
 				const Vec3 x0 = (hit.contactPoint - body._worldCom);
 				const Vec3& n = hit.contactNormal;
-				Vec3 vrel = body._velocity + cross(body._angularVelocity, x0);
+				Vec3 vrel = body._velocity + cross(body._angularVelocity, x0) 
+					- (_enableGraviy ? dot(_gravity, n) * deltaTime : 0) * n;
 				float vdot = dot(vrel, n);
 
-				Vec3 parallelVel = vrel - n * vdot;
-				Vec3 parallelDir = parallelVel;
+				Vec3 parallelDir = vrel - n * vdot;
 				double parallelnorm = normalize(parallelDir);
 
-				Vec3 frictionForce = weight * min(max(friction * dot(body._force, n),
-					-body._mass * parallelnorm / (deltaTime + epsilon)), 0.0) * parallelDir;
-				body.addExternalForce(frictionForce, hit.contactPoint);
+				float fNormal = dot(body._force, n);
+				if (fNormal < 0) {
+					Vec3 tangent = body._force - n * fNormal;
+					float fTangent = normalize(tangent);
+					if (parallelnorm > EPS) {
+						Vec3 dynamicFriction = -(dynFriction + body._friction) * 0.5f 
+							* parallelnorm * -fNormal * parallelDir;
+						body.addExternalForce(dynamicFriction, hit.contactPoint);
+					}
+					else {
+						// static
+						Vec3 staticFriction = -min(fTangent, 
+							(friction + body._friction) * 0.5f * -fNormal) * tangent;
+						body.addExternalForce(staticFriction, hit.contactPoint);
+						body._velocity -= dot(body._velocity, parallelDir) * parallelDir;
+					}
+				}
 
 				if (vdot < 0) {
 					const float c = 0;
@@ -786,7 +840,7 @@ void RigidBodySystemSimulator::collisionPLane(
 				accPos += weight * n * hit.contactDistance;
 			}
 
-			if ((normNoSqrt(accVel) + normNoSqrt(accAng)) > 1e-7) {
+			if ((normNoSqrt(accVel) + normNoSqrt(accAng)) > 1e-5) {
 				body.wake();
 				body._position += accPos;
 				body._velocity += accVel;
@@ -800,7 +854,6 @@ void RigidBodySystemSimulator::collisionRigidBodies(const float& deltaTime)
 {
 	const int POINT_SIZE = _points.size();
 	const int BODY_SIZE = _rigidbodies.size();
-	const float epsilon = 1e-9;
 	// points to rigidbodies
 	for (int pid = 0; pid < POINT_SIZE; pid++) {
 		PointMass& p = _points[pid];
@@ -811,7 +864,7 @@ void RigidBodySystemSimulator::collisionRigidBodies(const float& deltaTime)
 			// fast check with simple test first
 			if (body.isOverlapCoarse(p._position, p._radius)) {
 				Contact hit;
-				if (body.pointContact(p, hit)) {
+				if (body.pointContact(p._position, p._radius, hit)) {
 					float iM0 = 0;
 					float iM1 = 0;
 					Mat3 iI0;
@@ -819,6 +872,7 @@ void RigidBodySystemSimulator::collisionRigidBodies(const float& deltaTime)
 					Vec3 v1(0, 0, 0);
 					const Vec3 x0 = (hit.contactPoint - body._worldCom);
 					const Vec3& n = hit.contactNormal;
+
 					if (!body._isFixed) {
 						iM0 = body._invMass;
 						iI0 = body._worldInvInertia;
@@ -830,15 +884,19 @@ void RigidBodySystemSimulator::collisionRigidBodies(const float& deltaTime)
 					}
 					Vec3 vrel = v0 - v1;
 					float vdot = dot(vrel, n);
+					const float c = 0;
+					float J = (-(1 + c) * vdot) /
+						(iM0 + iM1 + dot(
+							cross(iI0.dot(cross(x0, n)), x0), n));
+
 					if (vdot < 0 || body._isFixed) {
-						const float c = 0;
-						float J = (-(1 + c) * vdot) /
-							(iM0 + iM1 + dot(
-								cross(iI0.dot(cross(x0, n)), x0), n));
 						const Vec3 Jn = J * n;
 						if (!body._isFixed) {
-							//Vec3 posDiff = (iM0 / (iM0 + iM1)) * hit.contactDistance * hit.contactNormal;
-							Vec3 posDiff = 0.5 * hit.contactDistance * hit.contactNormal;
+							float w0 = 1;
+							if (!p._isFixed) {
+								w0 = (p._mass / (body._mass + p._mass));
+							}
+							Vec3 posDiff = w0 * hit.contactDistance * hit.contactNormal;
 							Vec3 velDiff = Jn * iM0;
 							Vec3 angDiff = cross(x0, Jn);
 							if ((normNoSqrt(velDiff) + normNoSqrt(angDiff) + normNoSqrt(posDiff)) > 1e-6) {
@@ -851,11 +909,22 @@ void RigidBodySystemSimulator::collisionRigidBodies(const float& deltaTime)
 							//body._torque = ZERO_VEC;
 						}
 						if (!p._isFixed) {
-							//p._position += (iM1 / (iM0 + iM1)) * -hit.contactDistance * hit.contactNormal;
-							p._position += 0.5 * -hit.contactDistance * hit.contactNormal;
+							float w1 = 1;
+							if (!body._isFixed) {
+								w1 = (body._mass / (body._mass + p._mass));
+							}
+							p._position += w1 * -hit.contactDistance * hit.contactNormal;
 							p._velocity += -Jn * iM1;
 							p._force = ZERO_VEC;
 						}
+
+						const float friction = body._friction;
+						Vec3 tangent = vrel - vdot * n;
+						float tangentVel = normalize(tangent);
+						const Vec3 uJt = -friction * (J + max(0.0, dot(body._force - p._force, n)))
+							* tangentVel * tangent;
+						body.addExternalForce(uJt, hit.contactPoint);
+						p._force -= uJt;
 					}
 				}
 			}
@@ -902,23 +971,40 @@ void RigidBodySystemSimulator::collisionRigidBodies(const float& deltaTime)
 					}
 					Vec3 vrel = v0 - v1;
 					float vdot = dot(vrel, n);
+					const float c = 0;
+					float J = (-(1 + c) * vdot) /
+						(iM0 + iM1 + dot(
+							cross(iI0.dot(cross(x0, n)), x0) +
+							cross(iI1.dot(cross(x1, n)), x1), n));
 					if (vdot < 0) {
-						const float c = 0;
-						float J = (-(1 + c) * vdot) /
-							(iM0 + iM1 + dot(
-								cross(iI0.dot(cross(x0, n)), x0) +
-								cross(iI1.dot(cross(x1, n)), x1), n));
 						const Vec3 Jn = J * n;
+						
 						if (!b0._isFixed) {
-							b0._position += 0.5 * hit.depth * hit.normalWorld;
+							float w0 = 1;
+							if (!b1._isFixed) {
+								w0 = (b1._mass / (b0._mass + b1._mass));
+							}
+							b0._position += w0 * hit.depth * n;
 							b0._velocity += Jn * iM0;
 							b0._angularMomentum += cross(x0, Jn);
 						}
 						if (!b1._isFixed) {
-							b1._position -= 0.5 * hit.depth * hit.normalWorld;
-							b1._velocity -= Jn * iM1;
+							float w1 = 1;
+							if (!b0._isFixed) {
+								w1 = (b0._mass / (b0._mass + b1._mass));
+							}
+							b1._position -= w1 * hit.depth * n;
+							b1._velocity += -Jn * iM1;
 							b1._angularMomentum -= cross(x1, Jn);
 						}
+
+						const float friction = (b0._friction + b1._friction) * 0.5;
+						Vec3 tangent = vrel - vdot * n;
+						float tangentVel = normalize(tangent);
+						const Vec3 uJt = -friction * (J + max(0.0, dot(b0._force - b1._force, n)))
+							* tangentVel * tangent;
+						b0.addExternalForce(uJt, hit.collisionPointWorld);
+						b1.addExternalForce(-uJt, hit.collisionPointWorld);
 					}
 				}
 			}

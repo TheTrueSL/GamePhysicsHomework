@@ -19,6 +19,7 @@ public:
 		int index;
 		float lifeTime;
 	};
+	std::vector<Vec3> contacts;
 
 	// Construtors
 	RigidBodySystemSimulator();
@@ -38,6 +39,7 @@ public:
 	void loadSimpleSetup();
 	void loadTwoBodySetup();
 	void loadComplexSetup();
+	void loadTestSetup();
 	void createRope(float mass, float damping, float stiffness, const Vec3& start, const Vec3& end, int samples);
 	void createCloth(float mass, float damping, float stiffness, const Vec3& start, const Vec3& end, int samples0, int samples1);
 	void createBox(float mass, float damping, float stiffness, const Vec3& center, const float size);
@@ -79,6 +81,7 @@ private:
 	float _angularDamping;
 	float _externalSpringForce;
 
+	bool _pause;
 	bool _enableShoot;
 	bool _enableGraviy;
 	bool _enableCollision;

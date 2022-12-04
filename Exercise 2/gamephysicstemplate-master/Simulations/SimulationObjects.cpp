@@ -2,6 +2,27 @@
 
 namespace {
 	const Vec3 ZERO_VEC(0, 0, 0);
+
+	const Vec3 BOX_CORNERS[8] = {
+	Vec3(1,1,1),//0
+	Vec3(1,1,-1),//1
+	Vec3(1,-1,1),//2
+	Vec3(1,-1,-1),//3
+	Vec3(-1,1,1),//4
+	Vec3(-1,1,-1),//5
+	Vec3(-1,-1,1),//6
+	Vec3(-1,-1,-1)//7
+	};
+
+	const RigidBody::Edge BOX_EDGES[12] = {
+		{0, 1},{0, 2},{0, 4},
+		{1, 3},{1, 5},
+		{2, 3},{2, 6},
+		{3, 7},
+		{4, 5},{4, 6},
+		{5, 7},
+		{6, 7},
+	};
 }
 
 int RigidBody::RestFrames = 4;
@@ -60,18 +81,11 @@ void RigidBody::updateTransofmration()
 	}
 
 	_coarseCenter = _worldCom;
-}
 
-const Vec3 BOX_CORNERS[8] = {
-	Vec3(1,1,1),
-	Vec3(1,1,-1),
-	Vec3(1,-1,1),
-	Vec3(1,-1,-1),
-	Vec3(-1,1,1),
-	Vec3(-1,1,-1),
-	Vec3(-1,-1,1),
-	Vec3(-1,-1,-1)
-};
+	_basisAxis[0] = _transformation.transformVectorNormal(Vec3(1, 0, 0));
+	_basisAxis[1] = _transformation.transformVectorNormal(Vec3(0, 1, 0));
+	_basisAxis[2] = _transformation.transformVectorNormal(Vec3(0, 0, 1));
+}
 
 bool RigidBody::isOverlapCoarse(const Vec3& point, const float& radius)
 {
@@ -96,67 +110,42 @@ bool RigidBody::planeContact(const Vec3& normal, const float& offset, std::vecto
 	return (outContacts.size() > 0);
 }
 
-bool RigidBody::pointContact(PointMass& p, Contact& outContact)
+bool RigidBody::pointContact(const Vec3& pos, const float radius, Contact& outContact)
 {
 	const float epsilon = 1e-8;
-	Vec3 localPoint = _invTransformation.transformVector(p._position);
-	Vec3 nearestPoint = localPoint;
-	nearestPoint.x = max(min(nearestPoint.x, _halfSize.x), -_halfSize.x);
-	nearestPoint.y = max(min(nearestPoint.y, _halfSize.y), -_halfSize.y);
-	nearestPoint.z = max(min(nearestPoint.z, _halfSize.z), -_halfSize.z);
+	Vec3 localPoint = _invTransformation.transformVector(pos);
+	float minDist = _halfSize.x - abs(localPoint.x) + radius;
+	Vec3 normal = _basisAxis[0] * (localPoint.x < 0 ? -1 : 1);
+	if (minDist < 0)
+		return false;
 
-	float sqrDist = normNoSqrt(localPoint - nearestPoint);
-	if (sqrDist < (p._radius * p._radius)) {
-		if (sqrDist < epsilon) { 
-			// point inside
-			float x0 = abs(localPoint.x - _halfSize.x);
-			float x1 = abs(localPoint.x + _halfSize.x);
-			float y0 = abs(localPoint.y - _halfSize.y);
-			float y1 = abs(localPoint.y + _halfSize.y);
-			float z0 = abs(localPoint.z - _halfSize.z);
-			float z1 = abs(localPoint.z + _halfSize.z);
-			float minAxis = x0;
-			Vec3 normal(-1, 0, 0);
-			if (minAxis > x1) {
-				normal = Vec3(1, 0, 0);
-				minAxis = x1;
-			}
-			if (minAxis > y0) {
-				normal = Vec3(0, -1, 0);
-				minAxis = y0;
-			}
-			if (minAxis > y1) {
-				normal = Vec3(0, 1, 0);
-				minAxis = y1;
-			}
-			if (minAxis > z0) {
-				normal = Vec3(0, 0, -1);
-				minAxis = z0;
-			}
-			if (minAxis > z1) {
-				normal = Vec3(0, 0, 1);
-				minAxis = z1;
-			}
-			float distance = minAxis + p._radius;
-			outContact.contactDistance = distance;
-			outContact.contactNormal = _transformation.transformVectorNormal(normal);
-			outContact.contactPoint = _transformation.transformVector(localPoint);
-		}
-		else {
-			// point outside
-			Vec3 normal = (nearestPoint - localPoint);
-			normalize(normal);
-			float distance = p._radius - norm(localPoint - nearestPoint);
-			outContact.contactDistance = distance;
-			outContact.contactNormal = _transformation.transformVectorNormal(normal);
-			outContact.contactPoint = _transformation.transformVector(nearestPoint);
-		}
-		
-
-		return true;
+	float dist = _halfSize.y - abs(localPoint.y) + radius;
+	if (dist < 0)
+		return false;
+	else if (dist < minDist) {
+		minDist = dist;
+		normal = _basisAxis[1] * (localPoint.y < 0 ? -1 : 1);
 	}
 
-	return false;
+	dist = _halfSize.z - abs(localPoint.z) + radius;
+	if (dist < 0)
+		return false;
+	else if (dist < minDist) {
+		minDist = dist;
+		normal = _basisAxis[2] * (localPoint.z < 0 ? -1 : 1);
+	}
+
+	outContact.contactNormal = -normal;
+	if (minDist < radius) {
+		outContact.contactDistance = minDist;
+		outContact.contactPoint = pos - normal * radius;
+	}
+	else {
+		outContact.contactDistance = minDist;
+		outContact.contactPoint = pos;
+	}
+	
+	return true;
 }
 
 bool RigidBody::rayIntersection(const Vec3& rayOrigin, const Vec3& rayDir, Vec3& outIntersection)
@@ -177,10 +166,11 @@ bool RigidBody::rayIntersection(const Vec3& rayOrigin, const Vec3& rayDir, Vec3&
 	return true;
 }
 
-RigidBody::RigidBody(float mass, const Vec3& size, const Vec3& position, bool fixed)
+RigidBody::RigidBody(float mass, const Vec3& size, const Vec3& position, bool fixed, float friction)
 {
 	_mass = mass;
 	_invMass = 1.0 / mass;
+	_friction = friction;
 
 	_size = size;
 	_halfSize = size * 0.5;

@@ -1,15 +1,12 @@
 ﻿// header file:
 #include <DirectXMath.h>
 #include <Vector>
-#include "util/vectorbase.h"
-#include "util/matrixbase.h"
-
 using namespace DirectX;
 
 // the return structure, with these values, you should be able to calculate the impulse
 // the depth shouldn't be used in your impulse calculation, it is a redundant value
 // if the normalWorld == XMVectorZero(), no collision
-struct CollisionInfo{
+struct CollisionInfo {
 	bool isValid;                          // whether there is a collision point, true for yes
 	GamePhysics::Vec3 collisionPointWorld; // the position of the collision point in world space
 	GamePhysics::Vec3 normalWorld;         // the direction of the impulse to A, negative of the collision face of A
@@ -17,8 +14,8 @@ struct CollisionInfo{
 };
 
 // tool data structures/functions called by the collision detection method, you can ignore the details here
-namespace collisionTools{
-	struct Projection{
+namespace collisionTools {
+	struct Projection {
 		float min, max;
 	};
 
@@ -75,11 +72,11 @@ namespace collisionTools{
 	{
 		XMVECTOR size = XMVectorZero();
 		XMVECTOR edges[3];
-		for (size_t i = 0; i < 3; ++i){
+		for (size_t i = 0; i < 3; ++i) {
 			edges[i] = XMVector3TransformNormal(XMVectorSetByIndex(XMVectorZero(), 0.5f, i), obj2World);
 			XMVECTOR length = XMVector3Length(edges[i]);
 
-			size = XMVectorSetByIndex(size, 2.0f*XMVectorGetByIndex(length, 0), i);
+			size = XMVectorSetByIndex(size, 2.0f * XMVectorGetByIndex(length, 0), i);
 		}
 		return size;
 	}
@@ -127,7 +124,7 @@ namespace collisionTools{
 		std::vector<XMVECTOR> results;
 		for (int i = 0; i < edges1.size(); i++)
 		{
-			for (int j = 0; j<edges2.size(); j++)
+			for (int j = 0; j < edges2.size(); j++)
 			{
 				XMVECTOR vector = XMVector3Cross(edges1[i], edges2[j]);
 				if (XMVectorGetX(XMVector3Length(vector)) > 0)
@@ -171,11 +168,11 @@ namespace collisionTools{
 	}
 
 	static inline XMVECTOR contactPoint(
-		const XMVECTOR &pOne,
-		const XMVECTOR &dOne,
+		const XMVECTOR& pOne,
+		const XMVECTOR& dOne,
 		float oneSize,
-		const XMVECTOR &pTwo,
-		const XMVECTOR &dTwo,
+		const XMVECTOR& pTwo,
+		const XMVECTOR& dTwo,
 		float twoSize,
 
 		// If this is true, and the contact point is outside
@@ -268,7 +265,7 @@ namespace collisionTools{
 				// then we can guarantee that the shapes do not overlap
 				return info;
 			}
-			else{
+			else {
 				// get the overlap
 				float o = getOverlap(p1, p2);
 				// check for minimum
@@ -291,7 +288,7 @@ namespace collisionTools{
 				// then we can guarantee that the shapes do not overlap
 				return  info;
 			}
-			else{
+			else {
 				// get the overlap
 				float o = getOverlap(p1, p2);
 				// check for minimum
@@ -316,7 +313,7 @@ namespace collisionTools{
 				// then we can guarantee that the shapes do not overlap
 				return info;
 			}
-			else{
+			else {
 				// get the overlap
 				float o = getOverlap(p1, p2);
 				// check for minimum
@@ -333,50 +330,49 @@ namespace collisionTools{
 		// if we get here then we know that every axis had overlap on it
 		// so we can guarantee an intersection
 		XMVECTOR normal;
-		switch (fromWhere){
-		case 0:{
-				   normal = axis;
-				   if (XMVectorGetX(XMVector3Dot(axis, toCenter)) <= 0)
-				   {
-					   normal = normal * -1.0f;
-				   }
-				   collisionPoint = handleVertexToface(obj2World_B, toCenter);
+		switch (fromWhere) {
+		case 0: {
+			normal = axis;
+			if (XMVectorGetX(XMVector3Dot(axis, toCenter)) <= 0)
+			{
+				normal = normal * -1.0f;
+			}
+			collisionPoint = handleVertexToface(obj2World_B, normal);
 		}break;
-		case 1:{
-				   normal = axis;
-				   if (XMVectorGetX(XMVector3Dot(axis, toCenter)) <= 0)
-				   {
-					   normal = normal * -1.0f;
-				   }
-				   collisionPoint = handleVertexToface(obj2World_A, toCenter*-1);
+		case 1: {
+			normal = axis;
+			if (XMVectorGetX(XMVector3Dot(axis, toCenter)) <= 0)
+			{
+				normal = normal * -1.0f;
+			}
+			collisionPoint = handleVertexToface(obj2World_A, normal * -1);
 		}break;
-		case 2:{
-				   XMVECTOR axis = XMVector3Normalize(XMVector3Cross(axes1[whichEdges / 3], axes2[whichEdges % 3]));
-				   normal = axis;
-				   if (XMVectorGetX(XMVector3Dot(axis, toCenter)) <= 0)
-				   {
-					   normal = normal * -1.0f;
-				   }
-				   XMVECTOR ptOnOneEdge = XMVectorSet(0.5, 0.5, 0.5, 1);
-				   XMVECTOR ptOnTwoEdge = XMVectorSet(0.5, 0.5, 0.5, 1);
+		case 2: {
+			normal = axis;
+			if (XMVectorGetX(XMVector3Dot(axis, toCenter)) <= 0)
+			{
+				normal = normal * -1.0f;
+			}
+			XMVECTOR ptOnOneEdge = XMVectorSet(0.5, 0.5, 0.5, 1);
+			XMVECTOR ptOnTwoEdge = XMVectorSet(0.5, 0.5, 0.5, 1);
 
-				   for (int i = 0; i < 3; i++)
-				   {
-					   if (i == whichEdges / 3) ptOnOneEdge = XMVectorSetByIndex(ptOnOneEdge, 0, i);
-					   else if (XMVectorGetX(XMVector3Dot(axes1[i], normal)) < 0) ptOnOneEdge = XMVectorSetByIndex(ptOnOneEdge, -XMVectorGetByIndex(ptOnOneEdge, i), i);
+			for (int i = 0; i < 3; i++)
+			{
+				if (i == whichEdges / 3) ptOnOneEdge = XMVectorSetByIndex(ptOnOneEdge, 0, i);
+				else if (XMVectorGetX(XMVector3Dot(axes1[i], normal)) < 0) ptOnOneEdge = XMVectorSetByIndex(ptOnOneEdge, -XMVectorGetByIndex(ptOnOneEdge, i), i);
 
-					   if (i == whichEdges % 3) ptOnTwoEdge = XMVectorSetByIndex(ptOnTwoEdge, 0, i);
-					   else if (XMVectorGetX(XMVector3Dot(axes2[i], normal)) > 0) ptOnTwoEdge = XMVectorSetByIndex(ptOnTwoEdge, -XMVectorGetByIndex(ptOnTwoEdge, i), i);
-				   }
-				   ptOnOneEdge = XMVector3Transform(ptOnOneEdge, obj2World_A);
-				   ptOnTwoEdge = XMVector3Transform(ptOnTwoEdge, obj2World_B);
-				   collisionPoint = contactPoint(ptOnOneEdge,
-					   axes1[whichEdges / 3],
-					   (float)XMVectorGetByIndex(size_A, (whichEdges / 3)),
-					   ptOnTwoEdge,
-					   axes2[whichEdges % 3],
-					   XMVectorGetByIndex(size_B, (whichEdges % 3)),
-					   bestSingleAxis);
+				if (i == whichEdges % 3) ptOnTwoEdge = XMVectorSetByIndex(ptOnTwoEdge, 0, i);
+				else if (XMVectorGetX(XMVector3Dot(axes2[i], normal)) > 0) ptOnTwoEdge = XMVectorSetByIndex(ptOnTwoEdge, -XMVectorGetByIndex(ptOnTwoEdge, i), i);
+			}
+			ptOnOneEdge = XMVector3Transform(ptOnOneEdge, obj2World_A);
+			ptOnTwoEdge = XMVector3Transform(ptOnTwoEdge, obj2World_B);
+			collisionPoint = contactPoint(ptOnOneEdge,
+				axes1[whichEdges / 3],
+				(float)XMVectorGetByIndex(size_A, (whichEdges / 3)),
+				ptOnTwoEdge,
+				axes2[whichEdges % 3],
+				XMVectorGetByIndex(size_B, (whichEdges % 3)),
+				bestSingleAxis);
 		}break;
 		}
 
@@ -384,7 +380,7 @@ namespace collisionTools{
 		info.isValid = true;
 		info.collisionPointWorld = collisionPoint;
 		info.depth = smallOverlap;
-		info.normalWorld = normal*-1;
+		info.normalWorld = normal * -1;
 		return info;
 	}
 }
@@ -398,14 +394,14 @@ inline CollisionInfo checkCollisionSAT(GamePhysics::Mat4& obj2World_A, GamePhysi
 	XMMATRIX MatA = obj2World_A.toDirectXMatrix(), MatB = obj2World_B.toDirectXMatrix();
 	XMVECTOR calSizeA = getBoxSize(MatA);
 	XMVECTOR calSizeB = getBoxSize(MatB);
-	
+
 	return checkCollisionSATHelper(MatA, MatB, calSizeA, calSizeB);
 }
 
 // example of using the checkCollisionSAT function
-inline void testCheckCollision(int caseid){
+inline void testCheckCollision(int caseid) {
 
-	if (caseid == 1){// simple examples, suppose that boxes A and B are cubes and have no rotation
+	if (caseid == 1) {// simple examples, suppose that boxes A and B are cubes and have no rotation
 		GamePhysics::Mat4 AM; AM.initTranslation(1.0, 1.0, 1.0);// box A at (1.0,1.0,1.0)
 		GamePhysics::Mat4 BM; BM.initTranslation(2.0, 2.0, 2.0);  //box B at (2.0,2.0,2.0)
 
@@ -422,7 +418,7 @@ inline void testCheckCollision(int caseid){
 		// collision point : 1.500000, 1.500000, 1.500000
 		// Box A should be pushed to the left
 	}
-	else if (caseid == 2){// case 2, collide at a corner of Box B:
+	else if (caseid == 2) {// case 2, collide at a corner of Box B:
 		GamePhysics::Mat4 AM, BM;
 		AM.initTranslation(0.2f, 5.0f, 1.0f); // box A moves(0.2f, 5.0f, 1.0f) from origin
 		BM.initRotationZ(45); // box B rotates 45 degree around axis z
@@ -445,7 +441,7 @@ inline void testCheckCollision(int caseid){
 		// collision detected at normal : 0.000000, 1.000000, 0.000000
 		// collision point : 0.000000, 4.000000, 1.000000
 	}
-	else if (caseid == 3){// case 3, collide at a corner of Box A:
+	else if (caseid == 3) {// case 3, collide at a corner of Box A:
 		// box A first rotates 45 degree around axis z
 		// box A moves(-2.0f, 0.0f, 1.0f) from origin,(-2.0f,0.0f,1.0f) is the centre position of A in world space
 		// box A size(2.829f, 2.829f, 2.0f)

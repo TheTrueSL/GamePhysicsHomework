@@ -87,7 +87,7 @@ public:
 class RigidBody {
 	friend class RigidBodySystemSimulator;
 public:
-	RigidBody(float mass, const Vec3& size, const Vec3& position, bool fixed);
+	RigidBody(float mass, const Vec3& size, const Vec3& position, bool fixed, float friction=25);
 	const Mat4& getTransformation();
 	void addExternalForce(const Vec3& worldForce, const Vec3& worldPos);
 	void updateTransofmration();
@@ -95,8 +95,21 @@ public:
 	void wake();
 	bool rayIntersection(const Vec3& rayOrigin, const Vec3& rayDir, Vec3& outIntersection);
 	bool isOverlapCoarse(const Vec3& point, const float& radius);
-	bool pointContact(PointMass& p, Contact& outContact);
+	bool pointContact(const Vec3& pos, const float radius, Contact& outContact);
 	bool planeContact(const Vec3& normal, const float& offset, std::vector<Contact>& outContacts);
+	bool checkSATContact(RigidBody& other, Contact& outContact);
+
+public:
+	// sat informations
+	struct Projection {
+		float max;
+		float min;
+	};
+	struct Edge {
+		int idx0;
+		int idx1;
+	};
+
 protected:
 	void boxInertia(const Vec3& size);
 private:
@@ -127,6 +140,7 @@ private:
 	Vec3 _com;
 	float _mass;
 	float _invMass;
+	float _friction;
 
 	bool _isFixed;
 	bool _isSleep;
@@ -137,4 +151,6 @@ private:
 
 	Mat3 _worldInvInertia;
 	Vec3 _worldCom;
+
+	Vec3 _basisAxis[3];
 };
