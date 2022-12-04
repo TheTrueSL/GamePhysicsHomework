@@ -24,6 +24,8 @@ using namespace GamePhysics;
 class DrawingUtilitiesClass{
 
 public:
+int g_windowSize[2];
+
 ID3D11Device* g_ppd3Device;
 ID3D11DeviceContext* g_pd3dImmediateContext;
 // Effect corresponding to "effect.fx"
@@ -256,6 +258,9 @@ void DrawFloor(ID3D11DeviceContext* pd3dImmediateContext)
 
 void updateScreenSize(int width, int height)
 {
+    g_windowSize[0] = width;
+    g_windowSize[1] = height;
+
 	 // Update camera parameters
 	g_camera.SetWindow(width, height);
 	g_camera.SetProjParams(XM_PI / 4.0f, float(width) / float(height), 0.1f, 100.0f);
