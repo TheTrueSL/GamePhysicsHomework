@@ -240,9 +240,21 @@ void RigidBodySystemSimulator::simulateTimestep(float timeStep)
 	}
 
 	if (_printSteps > 0) {
+		std::cout << "timeStep " << timeStep << std::endl;
 		for (int i = 0; i < _points.size(); i++) {
 			std::cout << "p " << i << ": " << _points[i]._position << std::endl;
 			std::cout << "v " << i << ": " << _points[i]._velocity << std::endl;
+		}
+		for (int i = 0; i < _rigidbodies.size(); i++) {
+			std::cout << "body_pos " << i << ": " << _rigidbodies[i]._position << std::endl;
+			std::cout << "body_vel " << i << ": " << _rigidbodies[i]._velocity << std::endl;
+			std::cout << "body_ang " << i << ": " << _rigidbodies[i]._angularVelocity << std::endl;
+			
+			Vec3 point(0.3, 0.5, 0.25);
+			Vec3 r = point - _rigidbodies[i]._worldCom;
+			Vec3 pointVelocity = _rigidbodies[i]._velocity + 
+				cross(_rigidbodies[i]._angularVelocity, r);
+			std::cout << "point_vel" << i << ": " << pointVelocity << std::endl;
 		}
 		_printSteps -= 1;
 	}
