@@ -49,6 +49,7 @@ void HSVtoRGB(float H, float S, float V, float& R, float& G, float& B) {
 Grid::Grid() {
 	_sizeX = 0;
 	_sizeY = 0;
+	_sizeZ = 0;
 	_data = nullptr;
 }
 
@@ -62,28 +63,39 @@ int Grid::getSizeY()
 	return _sizeY;
 }
 
-void Grid::setSize(int sizeX, int sizeY)
+int Grid::getSizeZ()
 {
-	if (_sizeX != sizeX || _sizeY != sizeY) {
+	return _sizeZ;
+}
+
+void Grid::setSize(int sizeX, int sizeY, int sizeZ)
+{
+	if (_sizeX != sizeX || _sizeY != sizeY || _sizeZ != sizeZ) {
 		if (_data != nullptr) {
 			for (int i = 0; i < _sizeX; i++) {
+				for (int j = 0; j < _sizeY; j++) {
+					delete[] _data[i][j];
+				}
 				delete[] _data[i];
-				_data[i] = nullptr;
 			}
 			delete[] _data;
 			_data = nullptr;
 		}
 
-		if (sizeX > 0 && sizeY > 0) {
-			_data = new float* [sizeX];
+		if (sizeX > 0 && sizeY > 0 && sizeZ > 0) {
+			_data = new float**[sizeX];
 			for (int i = 0; i < sizeX; i++) {
-				_data[i] = new float[sizeY];
+				_data[i] = new float*[sizeY];
+				for (int j = 0; j < sizeY; j++) {
+					_data[i][j] = new float[sizeZ];
+				}
 			}
 		}
 	}
 
 	_sizeX = sizeX;
 	_sizeY = sizeY;
+	_sizeZ = sizeZ;
 
 	setZero();
 }
@@ -92,27 +104,31 @@ void Grid::setZero()
 {
 	for (int i = 0; i < _sizeX; i++) {
 		for (int j = 0; j < _sizeY; j++) {
-			_data[i][j] = 0;
+			for (int k = 0; k < _sizeY; k++) {
+				_data[i][j][k] = 0;
+			}
 		}
 	}
 }
 
-float Grid::getValueIndex(int gridX, int gridY)
+float Grid::getValueIndex(int gridX, int gridY, int gridZ)
 {
-	return _data[gridX][gridY];
+	return _data[gridX][gridY][gridZ];
 }
 
-void Grid::setValueIndex(int gridX, int gridY, float v)
+void Grid::setValueIndex(int gridX, int gridY, int gridZ, float v)
 {
-	_data[gridX][gridY] = v;
+	_data[gridX][gridY][gridZ] = v;
 }
 
 Grid::~Grid()
 {
 	if (_data != nullptr) {
 		for (int i = 0; i < _sizeX; i++) {
+			for (int j = 0; j < _sizeY; j++) {
+				delete[] _data[i][j];
+			}
 			delete[] _data[i];
-			_data[i] = nullptr;
 		}
 		delete[] _data;
 		_data = nullptr;
@@ -129,8 +145,9 @@ DiffusionSimulator::DiffusionSimulator()
 	frontT = new Grid();
 	backT = new Grid();
 	_h = 0.025;
-	_sizeX = 24;
-	_sizeY = 24;
+	_sizeX = 16;
+	_sizeY = 16;
+	_sizeZ = 16;
 	_diffusionCoef = 1.0;
 }
 
@@ -162,11 +179,14 @@ void DiffusionSimulator::initUI(DrawingUtilitiesClass* DUC)
 	TwAddVarRW(DUC->g_pTweakBar, "DiffCoef", TW_TYPE_FLOAT, &_diffusionCoef, "");
 	TwAddVarRW(DUC->g_pTweakBar, "sizeX", TW_TYPE_INT32, &_sizeX, "");
 	TwAddVarRW(DUC->g_pTweakBar, "sizeY", TW_TYPE_INT32, &_sizeY, "");
+	TwAddVarRW(DUC->g_pTweakBar, "sizeZ", TW_TYPE_INT32, &_sizeZ, "");
 	TwAddVarRW(DUC->g_pTweakBar, "Length", TW_TYPE_FLOAT, &this->_h, "");
 }
 
 void DiffusionSimulator::setupDemo1() {
-	frontT->setValueIndex(frontT->getSizeX() / 2, frontT->getSizeY() / 2, 100);
+	frontT->setValueIndex(frontT->getSizeX() / 2, 
+		frontT->getSizeY() / 2, 
+		frontT->getSizeZ() / 2, 100);
 }
 
 void DiffusionSimulator::notifyCaseChanged(int testCase)
@@ -179,9 +199,14 @@ void DiffusionSimulator::notifyCaseChanged(int testCase)
 	//
 	//to be implemented
 	//
-	frontT->setSize(_sizeX, _sizeY);
+	_sizeX = max(1, min(50, _sizeX));
+	_sizeY = max(1, min(50, _sizeY));
+	_sizeZ = max(1, min(50, _sizeZ));
+
+	frontT->setSize(_sizeX, _sizeY, _sizeZ);
 	frontT->setZero();
-	backT->setSize(_sizeX, _sizeY);
+	backT->setSize(_sizeX, _sizeY, _sizeZ);
+	backT->setZero();
 
 	switch (m_iTestCase)
 	{
@@ -211,35 +236,25 @@ void DiffusionSimulator::diffuseTemperatureExplicit(const float dt) {//add your 
 	//make sure that the temperature in boundary cells stays zero
 	const int SIZE_X = frontT->getSizeX();
 	const int SIZE_Y = frontT->getSizeY();
+	const int SIZE_Z = frontT->getSizeZ();
 
 	const float INV_HH = 1.0;// 1.0 / (_h * _h)
 
 	for (int i = 1; i < SIZE_X - 1; i++) {
 		for (int j = 1; j < SIZE_Y - 1; j++) {
-			float laplacian =
-				(frontT->getValueIndex(i + 1, j) + frontT->getValueIndex(i - 1, j)
-					+ frontT->getValueIndex(i, j + 1) + frontT->getValueIndex(i, j - 1)
-					- 4 * frontT->getValueIndex(i, j)) * INV_HH;
-			float newValue = frontT->getValueIndex(i, j) +
-				_diffusionCoef * laplacian * dt;
+			for (int k = 1; k < SIZE_Z - 1; k++) {
+				float laplacian =
+					(frontT->getValueIndex(i + 1, j, k) + frontT->getValueIndex(i - 1, j, k)
+						+ frontT->getValueIndex(i, j + 1, k) + frontT->getValueIndex(i, j - 1, k)
+						+ frontT->getValueIndex(i, j, k + 1) + frontT->getValueIndex(i, j, k - 1)
+						- 6 * frontT->getValueIndex(i, j, k)) * INV_HH;
+				float newValue = frontT->getValueIndex(i, j, k) +
+					_diffusionCoef * laplacian * dt;
 
-			backT->setValueIndex(i, j, newValue);
+				backT->setValueIndex(i, j, k, newValue);
+			}
 		}
 	}
-	// boundary
-	for (int i = 0; i < SIZE_X - 1; i++) {
-		backT->setValueIndex(i, 0, 0);
-		backT->setValueIndex(i, SIZE_Y - 1, 0);
-	}
-	for (int j = 1; j < SIZE_Y - 1; j++) {
-		backT->setValueIndex(0, j, 0);
-		backT->setValueIndex(SIZE_X - 1, j, 0);
-	}
-	backT->setValueIndex(0, 0, 0);
-	backT->setValueIndex(SIZE_X - 1, 0, 0);
-	backT->setValueIndex(0, SIZE_Y - 1, 0);
-	backT->setValueIndex(SIZE_X - 1, SIZE_Y - 1, 0);
-
 	swapBuffer();
 }
 
@@ -248,10 +263,13 @@ void setupB(std::vector<Real>& b, Grid* grid) {//add your own parameters
 	//set vector B[sizeX*sizeY]
 	const int SIZE_X = grid->getSizeX();
 	const int SIZE_Y = grid->getSizeY();
+	const int SIZE_Z = grid->getSizeZ();
 	for (int i = 0; i < SIZE_X; i++) {
 		for (int j = 0; j < SIZE_Y; j++) {
-			int idx = i * SIZE_Y + j;
-			b.at(idx) = grid->getValueIndex(i, j);
+			for (int k = 0; k < SIZE_Z; k++) {
+				int idx = i * SIZE_Y * SIZE_Z + j * SIZE_Z + k;
+				b.at(idx) = grid->getValueIndex(i, j, k);
+			}
 		}
 	}
 }
@@ -262,29 +280,21 @@ void fillT(const std::vector<Real>& x, Grid* grid) {//add your own parameters
 	//make sure that the temperature in boundary cells stays zero
 	const int SIZE_X = grid->getSizeX();
 	const int SIZE_Y = grid->getSizeY();
+	const int SIZE_Z = grid->getSizeZ();
 	for (int i = 1; i < SIZE_X - 1; i++) {
 		for (int j = 1; j < SIZE_Y - 1; j++) {
-			int idx = i * SIZE_Y + j;
-			grid->setValueIndex(i, j, x[idx]);
+			for (int k = 1; k < SIZE_Z - 1; k++) {
+				int idx = i * SIZE_Y * SIZE_Z + j * SIZE_Z + k;
+				grid->setValueIndex(i, j, k, x[idx]);
+			}
 		}
 	}
-	for (int i = 0; i < SIZE_X - 1; i++) {
-		grid->setValueIndex(i, 0, 0);
-		grid->setValueIndex(i, SIZE_Y - 1, 0);
-	}
-	for (int j = 1; j < SIZE_Y - 1; j++) {
-		grid->setValueIndex(0, j, 0);
-		grid->setValueIndex(SIZE_X - 1, j, 0);
-	}
-	grid->setValueIndex(0, 0, 0);
-	grid->setValueIndex(SIZE_X - 1, 0, 0);
-	grid->setValueIndex(0, SIZE_Y - 1, 0);
-	grid->setValueIndex(SIZE_X - 1, SIZE_Y - 1, 0);
 }
 
 void setupA(SparseMatrix<Real>& A, Grid* grid, double factor) {//add your own parameters
 	const int SIZE_X = grid->getSizeX();
 	const int SIZE_Y = grid->getSizeY();
+	const int SIZE_Z = grid->getSizeZ();
 	// to be implemented
 	//setup Matrix A[sizeX*sizeY*sizeZ, sizeX*sizeY*sizeZ]
 	// set with:  A.set_element( index1, index2 , value );
@@ -293,49 +303,37 @@ void setupA(SparseMatrix<Real>& A, Grid* grid, double factor) {//add your own pa
 	const int LAPLACE_OFFSETS[3] = {
 		1,
 		SIZE_Y,
+		SIZE_Y * SIZE_Z,
 	};
-	for (int i = 1; i < SIZE_X-1; i++) {
-		for (int j = 1; j < SIZE_Y-1; j++) {
-			int idx = i * SIZE_Y + j;
-			A.set_element(idx, idx, 1 + 4 * factor); // set diagonal
-			for (int dim = 0; dim < 2; dim++) {
-				A.set_element(idx, idx + LAPLACE_OFFSETS[dim], -factor);
-				A.set_element(idx, idx - LAPLACE_OFFSETS[dim], -factor);
+	const int X_MAX = SIZE_X - 1;
+	const int Y_MAX = SIZE_Y - 1;
+	const int Z_MAX = SIZE_Z - 1;
+	for (int i = 0; i < SIZE_X; i++) {
+		for (int j = 0; j < SIZE_Y; j++) {
+			for (int k = 0; k < SIZE_Z; k++) {
+				int idx = i * SIZE_Y * SIZE_Z + j * SIZE_Z + k;
+				if (i == 0 || i == X_MAX || 
+					j == 0 || j == Y_MAX || 
+					k == 0 || k == Z_MAX) { // boundary
+					A.set_element(idx, idx, 1);
+				}
+				else {
+					A.set_element(idx, idx, 1 + 6 * factor); // set diagonal
+					for (int dim = 0; dim < 3; dim++) {
+						A.set_element(idx, idx + LAPLACE_OFFSETS[dim], -factor);
+						A.set_element(idx, idx - LAPLACE_OFFSETS[dim], -factor);
+					}
+				}
 			}
 		}
 	}
-	for (int i = 0; i < SIZE_X - 1; i++) {
-		int idx0 = i * SIZE_Y;
-		int idx1 = i * SIZE_Y + SIZE_Y - 1;
-		A.set_element(idx0, idx0, 1);
-		A.set_element(idx1, idx1, 1);
-	}
-	for (int j = 1; j < SIZE_Y - 1; j++) {
-		int idx0 = j;
-		int idx1 = (SIZE_X - 1) * SIZE_Y + j;
-		A.set_element(idx0, idx0, 1);
-		A.set_element(idx1, idx1, 1);
-	}
-	{
-
-		int idx0 = 0;
-		int idx1 = (SIZE_X - 1) * SIZE_Y;
-		int idx2 = (SIZE_Y - 1);
-		int idx3 = (SIZE_X - 1) * SIZE_Y + (SIZE_Y - 1);
-
-		A.set_element(idx0, idx0, 1);
-		A.set_element(idx1, idx1, 1);
-		A.set_element(idx2, idx2, 1);
-		A.set_element(idx3, idx3, 1);
-	}
 }
-
 
 void DiffusionSimulator::diffuseTemperatureImplicit(const float dt) {//add your own parameters
 	// solve A T = b
 	// to be implemented
 	//N = sizeX*sizeY*sizeZ
-	const int N = frontT->getSizeX() * frontT->getSizeY();
+	const int N = frontT->getSizeX() * frontT->getSizeY() * frontT->getSizeZ();
 	SparseMatrix<Real>* A = new SparseMatrix<Real>(N);
 	std::vector<Real>* b = new std::vector<Real>(N, Real(0));
 
@@ -383,21 +381,24 @@ void DiffusionSimulator::drawObjects()
 	//visualization
 	const int SIZE_X = frontT->getSizeX();
 	const int SIZE_Y = frontT->getSizeY();
+	const int SIZE_Z = frontT->getSizeZ();
 
 	float r, g, b;
 	Vec3 sphereSize(_h * 0.5, _h * 0.5, _h * 0.5);
-	Vec3 offset(_h * _sizeX * -0.5, -0.25, _h * _sizeY * -0.5);
+	Vec3 offset(_h * _sizeX * -0.5, _h * _sizeX * -0.5 - 0.2, _h * _sizeY * -0.5);
 	float c = 180.0 / 1.5;
 	float s = 1.0 / 1.5f;
 	for (int i = 0; i < SIZE_X; i++) {
 		for (int j = 0; j < SIZE_Y; j++) {
-			float v = frontT->getValueIndex(i, j);
-			float l = log10f(abs(v) + 1) * 2.0;
-			float sign = v > 0 ? 1 : -1;
-			HSVtoRGB(max(min(l * c + 179, 360.0f), 0.0f), 100, 100, r, g, b);
-			DUC->setUpLighting(Vec3(), Vec3(1, 1, 1), 100, Vec3(r, g, b));
-			DUC->drawSphere(Vec3(i * _h, 0, j * _h) + offset, 
-				sphereSize * (l + 5e-1) * s);
+			for (int k = 0; k < SIZE_Z; k++) {
+				float v = frontT->getValueIndex(i, j, k);
+				float l = log10f(abs(v) + 1) * 2.0;
+				float sign = v > 0 ? 1 : -1;
+				HSVtoRGB(max(min(l * c + 179, 360.0f), 0.0f), 100, 100, r, g, b);
+				DUC->setUpLighting(Vec3(), Vec3(1, 1, 1), 100, Vec3(r, g, b));
+				DUC->drawSphere(Vec3(i * _h, k * _h, j * _h) + offset,
+					sphereSize * (l + 5e-2) * s);
+			}
 		}
 	}
 	DUC->setUpLighting(Vec3(), Vec3(1, 1, 1), 0, Vec3(1, 1, 1));

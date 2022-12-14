@@ -11,16 +11,18 @@ public:
 	Grid();
 	int getSizeX();
 	int getSizeY();
-	void setSize(int sizeX, int sizeY);
+	int getSizeZ();
+	void setSize(int sizeX, int sizeY, int sizeZ);
 	void setZero();
-	float getValueIndex(int gridX, int gridY);
-	void setValueIndex(int gridX, int gridY, float v);
+	float getValueIndex(int gridX, int gridY, int gridZ);
+	void setValueIndex(int gridX, int gridY, int gridZ, float v);
 	~Grid();
 private:
 	// Attributes
 	int _sizeX;
 	int _sizeY;
-	float** _data;
+	int _sizeZ;
+	float*** _data;
 };
 
 
@@ -63,6 +65,7 @@ private:
 	// UI properties
 	int _sizeX;
 	int _sizeY;
+	int _sizeZ;
 	float _h;
 	float _diffusionCoef;
 
