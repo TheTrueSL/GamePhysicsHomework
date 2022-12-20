@@ -1,5 +1,7 @@
 #include "DiffusionSimulator.h"
 #include "pcgsolver.h"
+#include <random>
+#include <time.h>
 using namespace std;
 
 void HSVtoRGB(float H, float S, float V, float& R, float& G, float& B) {
@@ -104,7 +106,7 @@ void Grid::setZero()
 {
 	for (int i = 0; i < _sizeX; i++) {
 		for (int j = 0; j < _sizeY; j++) {
-			for (int k = 0; k < _sizeY; k++) {
+			for (int k = 0; k < _sizeZ; k++) {
 				_data[i][j][k] = 0;
 			}
 		}
@@ -149,6 +151,8 @@ DiffusionSimulator::DiffusionSimulator()
 	_sizeY = 16;
 	_sizeZ = 16;
 	_diffusionCoef = 1.0;
+	_integrator = 0;
+	srand(time(0));
 }
 
 DiffusionSimulator::~DiffusionSimulator()
@@ -162,13 +166,16 @@ DiffusionSimulator::~DiffusionSimulator()
 }
 
 const char* DiffusionSimulator::getTestCasesStr() {
-	return "Explicit_solver, Implicit_solver";
+	return "Demo 1, Demo 2, Demo 3 Hot vs Cold, Demo 4 Corner";
 }
 
 void DiffusionSimulator::reset() {
 	m_mouse.x = m_mouse.y = 0;
 	m_trackmouse.x = m_trackmouse.y = 0;
 	m_oldtrackmouse.x = m_oldtrackmouse.y = 0;
+	frontT->setZero();
+	backT->setZero();
+
 }
 
 void DiffusionSimulator::initUI(DrawingUtilitiesClass* DUC)
@@ -176,6 +183,8 @@ void DiffusionSimulator::initUI(DrawingUtilitiesClass* DUC)
 	this->DUC = DUC;
 
 	// to be implemented
+	TwType TW_TYPE_TESTCASE = TwDefineEnumFromString("Solver", "Explicit_solver, Implicit_solver");
+	TwAddVarRW(DUC->g_pTweakBar, "Solver", TW_TYPE_TESTCASE, &_integrator, "");
 	TwAddVarRW(DUC->g_pTweakBar, "DiffCoef", TW_TYPE_FLOAT, &_diffusionCoef, "");
 	TwAddVarRW(DUC->g_pTweakBar, "sizeX", TW_TYPE_INT32, &_sizeX, "");
 	TwAddVarRW(DUC->g_pTweakBar, "sizeY", TW_TYPE_INT32, &_sizeY, "");
@@ -184,9 +193,39 @@ void DiffusionSimulator::initUI(DrawingUtilitiesClass* DUC)
 }
 
 void DiffusionSimulator::setupDemo1() {
+	_integrator = 0;
 	frontT->setValueIndex(frontT->getSizeX() / 2, 
 		frontT->getSizeY() / 2, 
 		frontT->getSizeZ() / 2, 100);
+}
+
+void DiffusionSimulator::setupDemo2() {
+	_integrator = 1;
+	frontT->setValueIndex(frontT->getSizeX() / 2,
+		frontT->getSizeY() / 2,
+		frontT->getSizeZ() / 2, 100);
+}
+
+void DiffusionSimulator::setupDemo3() {
+	for (int i = 1; i < _sizeX-1; i++) {
+		for (int j = 1; j < _sizeY-1; j++) {
+			for (int k = 1; k < _sizeZ-1; k++) {
+				frontT->setValueIndex(i, j, k, (((rand()%10)/10.0)*100)-45);
+			}
+		}
+	}
+}
+
+void DiffusionSimulator::setupDemo4() {
+	_integrator = 1;
+	for (int i = _sizeX/2+1; i < _sizeX - 1; i++) {
+		for (int j = _sizeY/2+1; j < _sizeY - 1; j++) {
+			for (int k = _sizeZ/2+1; k < _sizeZ - 1; k++) {
+				
+				frontT->setValueIndex(i, j, k, 50);
+			}
+		}
+	}
 }
 
 void DiffusionSimulator::notifyCaseChanged(int testCase)
@@ -216,7 +255,15 @@ void DiffusionSimulator::notifyCaseChanged(int testCase)
 		break;
 	case 1:
 		cout << "Implicit solver!\n";
-		setupDemo1();
+		setupDemo2();
+		break;
+	case 2:
+		cout << "Hot vs Cold!\n";
+		setupDemo3();
+		break;
+	case 3:
+		cout << "Corner\n";
+		setupDemo4();
 		break;
 	default:
 		cout << "Empty Test!\n";
@@ -302,7 +349,7 @@ void setupA(SparseMatrix<Real>& A, Grid* grid, double factor) {//add your own pa
 	// avoid zero rows in A -> set the diagonal value for boundary cells to 1.0
 	const int LAPLACE_OFFSETS[3] = {
 		1,
-		SIZE_Y,
+		SIZE_Z,
 		SIZE_Y * SIZE_Z,
 	};
 	const int X_MAX = SIZE_X - 1;
@@ -357,6 +404,8 @@ void DiffusionSimulator::diffuseTemperatureImplicit(const float dt) {//add your 
 	solver.solve(*A, *b, x, ret_pcg_residual, ret_pcg_iterations, 0);
 	// x contains the new temperature values
 	fillT(x, frontT);//copy x to T
+	delete A;
+	delete b;
 }
 
 
@@ -364,7 +413,7 @@ void DiffusionSimulator::simulateTimestep(float timeStep)
 {
 	// to be implemented
 	// update current setup for each frame
-	switch (m_iTestCase)
+	switch (_integrator)
 	{
 	case 0:
 		diffuseTemperatureExplicit(timeStep);
@@ -394,7 +443,15 @@ void DiffusionSimulator::drawObjects()
 				float v = frontT->getValueIndex(i, j, k);
 				float l = log10f(abs(v) + 1) * 2.0;
 				float sign = v > 0 ? 1 : -1;
-				HSVtoRGB(max(min(l * c + 179, 360.0f), 0.0f), 100, 100, r, g, b);
+				if (sign >= 0) {
+					HSVtoRGB(max(min(l * c + 179, 360.0f), 0.0f), 100, 100, r, g, b);
+				}
+				else{
+					r = 200 * l*0.005;
+					g = 200 * l*0.005;
+					b = 250 * l*0.005;
+				}
+				
 				DUC->setUpLighting(Vec3(), Vec3(1, 1, 1), 100, Vec3(r, g, b));
 				DUC->drawSphere(Vec3(i * _h, k * _h, j * _h) + offset,
 					sphereSize * (l + 5e-2) * s);

@@ -52,6 +52,9 @@ public:
 
 	// demo scenes
 	void setupDemo1();
+	void setupDemo2();
+	void setupDemo3();
+	void setupDemo4();
 private:
 	// Attributes
 	Vec3  m_vfMovableObjectPos;
@@ -68,6 +71,7 @@ private:
 	int _sizeZ;
 	float _h;
 	float _diffusionCoef;
+	int _integrator;
 
 private:// Simulation
 	Grid* frontT; //save results of every time step
