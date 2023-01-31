@@ -1,8 +1,11 @@
 #include "RigidBodySystemSimulator.h"
-#include "collisionDetect.h"
+#include "RigidBodySystemSimulator.h"
+#include "RigidBodySystemSimulator.h"
 
 #include<random>
 #include<time.h>
+
+using namespace GamePhysics;
 
 namespace {
 	const Vec3 ZERO_VEC(0, 0, 0);
@@ -11,15 +14,8 @@ namespace {
 
 RigidBodySystemSimulator::RigidBodySystemSimulator()
 {
-	m_iTestCase = 0;
+	gameManager = new GameManager(this, &this->player);
 	DUC = nullptr;
-
-	_enableCollision = false;
-	_enableGraviy = false;
-	_enableShoot = false;
-
-	_printSteps = -1;
-
 	reset();
 }
 
@@ -27,28 +23,18 @@ const char* RigidBodySystemSimulator::getTestCasesStr()
 {
 	// custom case name, split with comma","
 	// notifyCaseChanged(int index) will be called when case is changed by user.
-	return "Demo1(simple 1 step), Demo2(single), Demo3(two body), Demo4(complex), Test";
+	return "Test";
 }
 
 void RigidBodySystemSimulator::initUI(DrawingUtilitiesClass* DUC)
 {
 	this->DUC = DUC;
-	TwType TW_TYPE_INTEGRATOR = TwDefineEnumFromString("Integrator Type",
-		"Euler, Leapfrog");
-	TwAddVarRW(DUC->g_pTweakBar, "Integrator", TW_TYPE_INTEGRATOR, &this->_integrator, "");
 	
-	TwAddVarRW(DUC->g_pTweakBar, "Gravity", TW_TYPE_BOOLCPP, &this->_enableGraviy, "");
 	TwAddVarRW(DUC->g_pTweakBar, "Gravity_x", TW_TYPE_DOUBLE, &this->_gravity.x, "");
 	TwAddVarRW(DUC->g_pTweakBar, "Gravity_y", TW_TYPE_DOUBLE, &this->_gravity.y, "");
 	TwAddVarRW(DUC->g_pTweakBar, "Gravity_z", TW_TYPE_DOUBLE, &this->_gravity.z, "");
-	TwAddVarRW(DUC->g_pTweakBar, "Collision", TW_TYPE_BOOLCPP, &this->_enableCollision, "");
-	TwAddVarRW(DUC->g_pTweakBar, "Floor", TW_TYPE_BOOLCPP, &this->_enableFloorCollision, "");
-	TwAddVarRW(DUC->g_pTweakBar, "Wall", TW_TYPE_BOOLCPP, &this->_enableWallCollision, "");
 	TwAddVarRW(DUC->g_pTweakBar, "LinearDamping", TW_TYPE_FLOAT, &this->_linearDamping, "");
 	TwAddVarRW(DUC->g_pTweakBar, "AngularDamping", TW_TYPE_FLOAT, &this->_angularDamping, "");
-	TwAddVarRW(DUC->g_pTweakBar, "ExternalForce", TW_TYPE_FLOAT, &this->_externalSpringForce, "");
-
-	TwAddVarRW(DUC->g_pTweakBar, "ShootMode", TW_TYPE_BOOLCPP, &this->_enableShoot, "");
 
 }
 
@@ -56,26 +42,15 @@ void RigidBodySystemSimulator::reset()
 {
 	_passedTime = 0;
 
-	_points.clear();
-	_springs.clear();
-	_rigidbodies.clear();
-	_bullets.clear();
-
-	_fillBullet = false;
+	deleteObjects();
 
 	_isPressed = false;
-	_isDragging = false;
 	_pressedTimer = clock();
-
-	_dragIndex = -1;
-	_dragType = -1;
 
 	_linearDamping = 0;
 	_angularDamping = 0;
 
 	// UI Attributes
-	_externalSpringForce = 0;
-	m_externalForce = Vec3();
 	m_mouse = Point2D();
 	m_trackmouse = Point2D();
 	m_oldtrackmouse = Point2D();
@@ -83,99 +58,43 @@ void RigidBodySystemSimulator::reset()
 
 void RigidBodySystemSimulator::drawFrame(ID3D11DeviceContext* pd3dImmediateContext)
 {
-	const int POINT_SIZE = _points.size();
-	const int SPRING_SIZE = _springs.size();
-	const int RIGIDBODY_SIZE = _rigidbodies.size();
-
 	const Vec3 white = Vec3(1., 1., 1.);
 	const Vec3 gray = white * 0.35;
 	const Vec3 red = Vec3(1., 0., 0.);
-	for (int pid = 0; pid < POINT_SIZE; pid++) {
-		PointMass& p = _points[pid];
-		if (p._isFixed) {
-			DUC->setUpLighting(Vec3(), Vec3(1, 1, 1), 100, red);
-		}
-		else {
-			DUC->setUpLighting(Vec3(), Vec3(1, 1, 1), 100, white);
-		}
-		this->DUC->drawSphere(p._position, p._radius);
+
+	Vec3 dir(0.01, -2.0, 0.01);
+	float y_plane = -0.5;
+	normalize(dir);
+	DUC->setUpLighting(Vec3(), Vec3(1, 1, 1), 10, white);
+	for (int i = 0; i < objects.size(); i++) {
+		objects[i]->draw(DUC);
+		objects[i]->collider->drawShadow(DUC, y_plane, dir);
 	}
-	/*DUC->setUpLighting(Vec3(), Vec3(1, 1, 1), 100, white);
-	this->DUC->drawSphere(
-		_rigidbodies[_dragIndex]._transformation.transformVector(_dragObjectPoint)
-		, 0.05);*/
-	for (int rid = 0; rid < RIGIDBODY_SIZE; rid++) {
-		RigidBody& body = _rigidbodies[rid];
-		if (body._isFixed) {
-			DUC->setUpLighting(Vec3(), Vec3(1, 1, 1), 100, red);
-		}
-		else if(body._isSleep){
-			DUC->setUpLighting(Vec3(), Vec3(1, 1, 1), 100, gray);
-		}
-		else {
-			DUC->setUpLighting(Vec3(), Vec3(1, 1, 1), 100, white);
-		}
-		this->DUC->drawRigidBody(body._renderTransformation);
+	for (int i = 0; i < customObjects.size(); i++) {
+		customObjects[i]->onDraw(DUC);
+		customObjects[i]->collider->drawShadow(DUC, y_plane, dir);
+		customObjects[i]->onFrameUpdate();
 	}
+
+	gameManager->onFrameUpdate();
+
+	player.draw(DUC);
 
 	DUC->setUpLighting(Vec3(), Vec3(1, 1, 1), 0, white);
 
-	this->DUC->beginLine();
-	for (int sid = 0; sid < SPRING_SIZE; sid++) {
-		Spring& s = _springs[sid];
-		int pid0 = s._pointID0;
-		int pid1 = s._pointID1;
-		{
-			PointMass& p0 = _points[pid0];
-			PointMass& p1 = _points[pid1];
-			this->DUC->drawLine(p0._position, white, p1._position, red);
-		}
-	}
-	if (_isDragging) {
-		if (_dragType == 0) {
-			this->DUC->drawLine(_dragMousePoint, red, _points[_dragIndex]._position, red);
-		}
-		else if (_dragType == 1) {
-			this->DUC->drawLine(_dragMousePoint, red, 
-				_rigidbodies[_dragIndex]._transformation.transformVector(_dragObjectPoint)
-				, red);
-		}
-	}
-	this->DUC->endLine();
+	Spring::drawAll(DUC);
+	
 }
 
 void RigidBodySystemSimulator::notifyCaseChanged(int testCase)
 {
-	std::cout << "Case Changed : " << testCase << std::endl;
-	switch (testCase)
-	{
-	case 0: // Demo1(simple 1 step)
-		_printSteps = 2;
-		loadSimpleSetup();
-		break;
-	case 1: // Demo2(simple)
-		_printSteps = -1;
-		loadSimpleSetup();
-		break;
-	case 2: // Demo3(two body)
-		_printSteps = -1;
-		loadTwoBodySetup();
-		break;
-	case 3: //Demo4(complex)
-		_printSteps = -1;
-		loadComplexSetup();
-		break;
-	case 4: //Demo4(complex)
-		_printSteps = -1;
-		loadTestSetup();
-		break;
-	default:
-		break;
-	}
+	loadTestSetup();
 }
 
 void RigidBodySystemSimulator::externalForcesCalculations(float timeElapsed)
 {
+	return;
+
 	Point2D mouseDiff;
 	mouseDiff.x = m_trackmouse.x - m_oldtrackmouse.x;
 	mouseDiff.y = m_trackmouse.y - m_oldtrackmouse.y;
@@ -202,79 +121,36 @@ void RigidBodySystemSimulator::externalForcesCalculations(float timeElapsed)
 		XMVECTOR w_vector1 = XMVectorSplatW(view1);
 		view1 = XMVectorDivide(view1, w_vector1);
 
-		Vec3 viewDragOrigin = View.transformVector(_dragOrigin);
+		/*Vec3 viewDragOrigin = View.transformVector(_dragOrigin);
 
 		Vec3 ray = (view1 - view0);
-		normalize(ray);
+		GamePhysics::normalize(ray);
 
-		Vec3 viewDragPoint = ray * norm(viewDragOrigin);
-		_dragMousePoint = ViewInv.transformVector(viewDragPoint);
-
-		if (_dragIndex != -1 ) {
-			if (_dragType == 0 && _points[_dragIndex]._isFixed) {
-				_points[_dragIndex]._position = _dragMousePoint;
-			} 
-			else if (_dragType == 1 && _rigidbodies[_dragIndex]._isFixed) {
-				RigidBody& body = _rigidbodies[_dragIndex];
-				body._position = body._transformation.transformVector(
-					body._invTransformation.transformVector(_dragMousePoint) - _dragObjectPoint);
-				body.updateTransofmration();
-			}
-		}
+		Vec3 viewDragPoint = ray * norm(viewDragOrigin);*/
+		//_dragMousePoint = ViewInv.transformVector(viewDragPoint);
 	}
 }
 
 void RigidBodySystemSimulator::simulateTimestep(float timeStep)
 {
-	if (_printSteps == 0)
-		return;
+	onStepStart(timeStep);
+	integrateExplicitEuler(timeStep);
+	onStepEnd(timeStep);
+	for (int i = 0; i < customObjects.size(); i++) {
+		customObjects[i]->onPhysicsUpdate(timeStep);
+	}
+}
 
-	if (_integrator == Integrator::EULER) {
-		integrateExplicitEuler(timeStep);
-	}
-	else if (_integrator == Integrator::LEAPFROG) {
-		integrateLeapfrog(timeStep);
-	}
-	else {
-		integrateExplicitEuler(timeStep);
-	}
+void RigidBodySystemSimulator::onKeyboardPressed(unsigned int key)
+{
+	std::cout << key << std::endl;
+	player.onKeyPressed(key);
+}
 
-	if (_printSteps > 0) {
-		std::cout << "timeStep " << timeStep << std::endl;
-		for (int i = 0; i < _points.size(); i++) {
-			std::cout << "p " << i << ": " << _points[i]._position << std::endl;
-			std::cout << "v " << i << ": " << _points[i]._velocity << std::endl;
-		}
-		for (int i = 0; i < _rigidbodies.size(); i++) {
-			std::cout << "body_pos " << i << ": " << _rigidbodies[i]._position << std::endl;
-			std::cout << "body_vel " << i << ": " << _rigidbodies[i]._velocity << std::endl;
-			std::cout << "body_ang " << i << ": " << _rigidbodies[i]._angularVelocity << std::endl;
-			
-			Vec3 point(0.3, 0.5, 0.25);
-			Vec3 r = point - _rigidbodies[i]._worldCom;
-			Vec3 pointVelocity = _rigidbodies[i]._velocity + 
-				cross(_rigidbodies[i]._angularVelocity, r);
-			std::cout << "point_vel" << i << ": " << pointVelocity << std::endl;
-		}
-		_printSteps -= 1;
-	}
-
-	for (int i = _bullets.size() - 1; i >= 0; i--) {
-		_bullets[i].lifeTime -= timeStep;
-		if (_bullets[i].lifeTime <= 0) {
-			_points.erase(_points.begin() + bulletStartIndex + i);
-			_bullets.erase(_bullets.begin() + i);
-		}
-	}
-	if (_fillBullet) {
-		if (_bullets.size() == 0)
-			bulletStartIndex = _points.size();
-
-		_bullets.push_back(Bullet(_points.size(), 2.0f));
-		_points.push_back(_pendingBullet);
-		_fillBullet = false;
-	}
-	this->m_externalForce = ZERO_VEC;
+void RigidBodySystemSimulator::onKeyboardReleased(unsigned int key)
+{
+	std::cout << key << std::endl;
+	player.onKeyReleased(key);
 }
 
 void RigidBodySystemSimulator::onClick(int x, int y)
@@ -303,8 +179,6 @@ void RigidBodySystemSimulator::onMouse(int x, int y)
 {
 	_isPressed = false;
 
-	_isDragging = false;
-
 	m_oldtrackmouse.x = x;
 	m_oldtrackmouse.y = y;
 	m_trackmouse.x = x;
@@ -313,60 +187,19 @@ void RigidBodySystemSimulator::onMouse(int x, int y)
 
 void RigidBodySystemSimulator::onMouseDown(int x, int y)
 {
-	if (_enableShoot) {
-		shootPointMass(x, y);
-		_isDragging = false;
-	}
-	else {
-		selectDragPoint(x, y, _dragType, _dragIndex);
-		if (_dragIndex != -1) {
-			_isDragging = true;
-
-		}
-		else {
-			_isDragging = false;
-		}
-	}
+	selectDragPoint(x, y, dragCollider);
 }
 
 void RigidBodySystemSimulator::onMouseDouble(int x, int y)
 {
-	if (_enableShoot)
-		return;
-
-	selectDragPoint(x, y, _dragType, _dragIndex);
-	if (_dragIndex != -1) {
-		if (_dragType == 0) {
-			PointMass& p = _points[_dragIndex];
-			p._isFixed = !p._isFixed;
-			if (p._isFixed) {
-				p._velocity = ZERO_VEC;
-				p._acceleration = ZERO_VEC;
-				p._force = ZERO_VEC;
-			}
-		}
-		else if (_dragType == 1) {
-			RigidBody& b = _rigidbodies[_dragIndex];
-			b._isFixed = !b._isFixed;
-			if (b._isFixed) {
-				b._velocity = ZERO_VEC;
-				b._angularMomentum = ZERO_VEC;
-				b._angularVelocity = ZERO_VEC;
-				b._force = ZERO_VEC;
-				b._torque = ZERO_VEC;
-			}
-		}
-	}
+	selectDragPoint(x, y, dragCollider);
 }
 
-void RigidBodySystemSimulator::selectDragPoint(int x, int y, int& outType, int& outIndex)
+void RigidBodySystemSimulator::selectDragPoint(int x, int y, Collider*& outCollider)
 {
 	// find closest point mass
 	float mx = (float)x / DUC->g_windowSize[0] * 2 - 1;
 	float my = 1 - (float)y / DUC->g_windowSize[1] * 2;
-
-	const int POINT_SIZE = _points.size();
-	const int BODY_SIZE = _rigidbodies.size();
 
 	XMMATRIX viewProj = DUC->g_camera.GetViewMatrix() *
 		DUC->g_camera.GetProjMatrix();
@@ -390,7 +223,7 @@ void RigidBodySystemSimulator::selectDragPoint(int x, int y, int& outType, int& 
 
 	Vec3 rayOrigin = ViewInv.transformVector(ZERO_VEC);
 	Vec3 rayDir = (view1 - view0);
-	normalize(rayDir);
+	GamePhysics::normalize(rayDir);
 	rayDir = ViewInv.transformVectorNormal(rayDir);
 
 	const float dragTolerance = 2e-3;
@@ -398,11 +231,12 @@ void RigidBodySystemSimulator::selectDragPoint(int x, int y, int& outType, int& 
 	float nearestZ = 1;
 	float mindd = 1;
 
-	outIndex = -1;
-	outType = -1;
+	outCollider = nullptr;
 
-	for (int i = 0; i < POINT_SIZE; i++) {
-		XMVECTOR clip_pos = XMVector4Transform(_points[i]._position.toDirectXVector(), viewProj);
+	for (int i = 0; i < objects.size(); i++) {
+		Vec3& position = objects[i]->transform->position;
+		XMVECTOR clip_pos = XMVector4Transform(
+			position.toDirectXVector(), viewProj);
 		XMVECTOR w_vector = XMVectorSplatW(clip_pos);
 		XMVECTOR ndc = XMVectorDivide(clip_pos, w_vector);
 
@@ -410,430 +244,141 @@ void RigidBodySystemSimulator::selectDragPoint(int x, int y, int& outType, int& 
 		float py = DirectX::XMVectorGetY(ndc);
 		float pz = DirectX::XMVectorGetZ(ndc); // depth
 
-		float dd = (mx - px) * (mx - px) + (my - py) * (my - py);
-		if (dd < dragTolerance) {
-			if (mindd > overlapTolerance) {
-				if (mindd > dd) {
-					mindd = dd;
-					nearestZ = pz;
-					outIndex = i;
-					outType = 0;
-					_dragOrigin = _points[i]._position;
-				}
-			}
-			else if (nearestZ > pz && dd < overlapTolerance) {
-				nearestZ = pz;
-				outIndex = i;
-				outType = 0;
-				_dragOrigin = _points[i]._position;
-			}
-		}
+		//float mx = (float)x / DUC->g_windowSize[0] * 2 - 1;
+		//float my = 1 - (float)y / DUC->g_windowSize[1] * 2;
 	}
-
-	Vec3 intersection;
-	for (int i = 0; i < BODY_SIZE; i++) {
-		RigidBody& body = _rigidbodies[i];
-		if (body.rayIntersection(rayOrigin, rayDir, intersection)) {
-			XMVECTOR clip_pos = XMVector4Transform(intersection.toDirectXVector(), viewProj);
-			XMVECTOR w_vector = XMVectorSplatW(clip_pos);
-			XMVECTOR ndc = XMVectorDivide(clip_pos, w_vector);
-			float px = DirectX::XMVectorGetX(ndc);
-			float py = DirectX::XMVectorGetY(ndc);
-			float pz = DirectX::XMVectorGetZ(ndc); // depth
-
-			float dd = (mx - px) * (mx - px) + (my - py) * (my - py);
-			if (dd < dragTolerance) {
-				if (mindd > overlapTolerance) {
-					if (mindd > dd) {
-						mindd = dd;
-						nearestZ = pz;
-						outIndex = i;
-						outType = 1;
-						_dragOrigin = intersection;
-					}
-				}
-				else if (nearestZ > pz && dd < overlapTolerance) {
-					nearestZ = pz;
-					outIndex = i;
-					outType = 1;
-					_dragOrigin = intersection;
-				}
-			}
-		}
-	}
-
-	_dragMousePoint = _dragOrigin;
-	if (outType == 0) {
-		_dragObjectPoint = ZERO_VEC;
-	}
-	else if (outType == 1) {
-		_dragObjectPoint = 
-			_rigidbodies[outIndex]._invTransformation.transformVector(_dragOrigin);
-	}
-
-}
-
-void RigidBodySystemSimulator::shootPointMass(int x, int y)
-{
-	if (_fillBullet)
-		return;
-
-	// find closest point mass
-	float mx = (float)x / DUC->g_windowSize[0] * 2 - 1;
-	float my = 1 - (float)y / DUC->g_windowSize[1] * 2;
-
-	Mat4 Proj = Mat4(DUC->g_camera.GetProjMatrix());
-	Mat4 ProjInv = Proj.inverse();
-	Mat4 View = Mat4(DUC->g_camera.GetViewMatrix());
-	Mat4 ViewInv = View.inverse();
-
-	Vec3 v0 = Vec3(mx, my, 0);
-	Vec3 v1 = Vec3(mx, my, 1);
-	XMVECTOR view0 = XMVector4Transform(
-		v0.toDirectXVector(), ProjInv.toDirectXMatrix());
-	XMVECTOR w_vector0 = XMVectorSplatW(view0);
-	view0 = XMVectorDivide(view0, w_vector0);
-
-	XMVECTOR view1 = XMVector4Transform(
-		v1.toDirectXVector(), ProjInv.toDirectXMatrix());
-	XMVECTOR w_vector1 = XMVectorSplatW(view1);
-	view1 = XMVectorDivide(view1, w_vector1);
-
-	Vec3 rayOrigin = ViewInv.transformVector(ZERO_VEC);
-	Vec3 rayDir = (view1 - view0);
-	normalize(rayDir);
-	rayDir = ViewInv.transformVectorNormal(rayDir);
-
-	PointMass bullet(0.5, rayOrigin, rayDir * 5, 0.04, false, true);
-	_pendingBullet = bullet;
-	_fillBullet = true;
-}
-
-int RigidBodySystemSimulator::addMassPoint(float mass, Vec3 position, Vec3 Velocity, bool isFixed, float radius)
-{
-	int point_idx = -1;
-
-	_points.push_back(PointMass(mass, position, Velocity, radius, isFixed));
-
-	point_idx = _points.size() - 1;
-
-	return point_idx;
-}
-
-void RigidBodySystemSimulator::addSpring(float damping, float stiffness, int masspoint1, int masspoint2)
-{
-	float initialLength = norm(_points[masspoint1]._position - _points[masspoint2]._position);
-	addSpring(damping, stiffness, masspoint1, masspoint2, initialLength);
-}
-void RigidBodySystemSimulator::addSpring(float damping, float stiffness, int masspoint1, int masspoint2, float initialLength)
-{
-	this->_springs.push_back(Spring(masspoint1, masspoint2, stiffness, damping, initialLength));
-}
-
-void RigidBodySystemSimulator::loadSimpleSetup()
-{
-	reset();
-
-	_enableCollision = false;
-	_enableWallCollision = false;
-	_enableFloorCollision = false;
-	_enableGraviy = false;
-
-	Vec3 p0(0, 0, 0);
-	Vec3 size(1, 0.6, 0.5);
-	float m0 = 2;
-	float rz = 90;
-
-	_externalSpringForce = 1;
-	_linearDamping = 0;
-	_angularDamping = 0;
-	_gravity = ZERO_VEC;
-
-	addRigidBody(p0, size, m0);
-	setOrientationOf(0, Quat(Vec3(0.0f, 0.0f, 1.0f), (float)(M_PI) * 0.5f));
-	applyForceOnBody(0, Vec3(0.3f, 0.5f, 0.25f), Vec3(1.0f, 1.0f, 0.0f));
-}
-
-void RigidBodySystemSimulator::loadTwoBodySetup()
-{
-	reset();
-
-	_enableCollision = true;
-	_enableWallCollision = false;
-	_enableFloorCollision = false;
-	_enableGraviy = false;
-
-	_externalSpringForce = 1;
-	_linearDamping = 3.5;
-	_angularDamping = 0.05;
-	_gravity = ZERO_VEC;
-
-	addRigidBody(Vec3(-0.1f, -0.2f, 0.1f), Vec3(0.4f, 0.2f, 0.2f), 100.0f, false);
-	addRigidBody(Vec3(0.0f, 0.2f, 0.0f), Vec3(0.4f, 0.2f, 0.2f), 100.0);
-	setOrientationOf(1, Quat(Vec3(0.0f, 0.0f, 1.0f), (float)(M_PI) * 0.25f));
-	setVelocityOf(1, Vec3(0.0f, -0.1f, 0.05f));
-}
-
-void RigidBodySystemSimulator::loadComplexSetup()
-{
-	reset();
-
-	_enableCollision = true;
-	_enableWallCollision = true;
-	_enableFloorCollision = true;
-	_enableGraviy = true;
-
-	_linearDamping = 0.18;
-	_angularDamping = 0.05;
-
-	_externalSpringForce = 3.5;
-
-	Vec3 gravity(0, -0.065, 0);
-
-	_gravity = gravity;
-
-	// at least 10 points and springs
-	// ground or wall collisions
-	// rope 0
-	//this->createRope(1, springDamping, 15, Vec3(0.2, 0.4, 0), Vec3(0.2, 0.025, 0), 3);
-	// rope 1
-	//this->createRope(1, springDamping, 40, Vec3(-0.2, 0.4, 0), Vec3(-0.2, 0.025, 0), 3);
-	// box 0
-	this->createBox(1, 0.5, 30, Vec3(0, 0.25, 0), 0.08);
-	addRigidBody(Vec3(0, -0.4, 0), Vec3(0.3, 0.1, 0.3), 5, false);
-	addRigidBody(Vec3(0, 0.1, 0), Vec3(0.24, 0.05, 0.24), 3, false);
-	addRigidBody(Vec3(0, 0.0, 0), Vec3(0.25, 0.11, 0.25), 4, false);
-	addRigidBody(Vec3(0, 0.7, 0), Vec3(0.22, 0.1, 0.22), 3, false);
-	addRigidBody(Vec3(0, 1.0, 0), Vec3(0.22, 0.22, 0.22), 5, false);
-	// cloth 0
-	this->createCloth(0.05, 0.85, 15, Vec3(-0.2, 0.4, 0.1), Vec3(0.2, 0.1, 0.1), 3, 4);
 }
 
 void RigidBodySystemSimulator::loadTestSetup() {
 	reset();
 
-	_enableCollision = true;
-	_enableWallCollision = false;
-	_enableFloorCollision = false;
-	_enableGraviy = true;
+	_linearDamping = 0.025;
+	_angularDamping = 1e-4;
 
-	_linearDamping = 0.18;
-	_angularDamping = 0.05;
-
-	_externalSpringForce = 3.5;
-
-	Vec3 gravity(0, -0.065, 0);
+	Vec3 gravity(0, -2.2, 0);
 
 	_gravity = gravity;
+
+	gameManager->onStart();
+
 	// box 0
-	addRigidBody(Vec3(0, -1.0, 0), Vec3(10, 0.2, 10), 5, true);
-	addRigidBody(Vec3(1.5, 0.1, 0), Vec3(0.24, 0.24, 0.24), 3, false);
-	setOrientationOf(1, Quat(Vec3(1, 1, 0), 0.51 * DirectX::XM_PI));
+	{
+		Transform* transform = new Transform();
+		transform->position = Vec3(0, 100.25, 0);
+		transform->rotation = Quat(0.5, 0, 0.25, 1);
+		transform->rotation /= transform->rotation.norm();
+
+		Rigidbody* rigidbody = new Rigidbody(transform);
+		rigidbody->setBoxInertia(8, Vec3(0.4, 0.5, 0.4));
+		rigidbody->angularMomentum = Vec3(0, 1, 0);
+		rigidbody->friction = 1.1;
+		Collider* collider = new Collider(transform, rigidbody);
+		collider->setBox(Vec3(0.4, 0.5, 0.4));
+		objects.push_back(new GameObject(transform, rigidbody, collider));
+	}
+
+	updateTransformations();
 }
 
-void RigidBodySystemSimulator::createRope(float mass, float damping, float stiffness, const Vec3& start, const Vec3& end, int samples)
+void RigidBodySystemSimulator::bindCustomObject(CustomObject* cobj)
 {
-	int istart = this->addMassPoint(mass, start, ZERO_VEC, true);
-
-	Vec3 ropeVec = end - start;
-	float length = normalize(ropeVec);
-	float unitLength = length / (samples + 1);
-	for (int n = 1; n <= samples; n++) {
-		int in = istart + n;
-		this->addMassPoint(mass, start + unitLength * ropeVec * n, ZERO_VEC, false);
-		this->addSpring(damping, stiffness, in - 1, in, unitLength);
-	}
-
-	int iend = this->addMassPoint(mass, end, ZERO_VEC, false);
-	this->addSpring(damping, stiffness, iend - 1, iend, unitLength);
-
+	colliderMap.insert(std::make_pair(cobj->collider->id, cobj));
+	customObjects.push_back(cobj);
 }
 
-void RigidBodySystemSimulator::createCloth(float mass, float damping, float stiffness, const Vec3& start, const Vec3& end, int samples0, int samples1)
+void RigidBodySystemSimulator::bindGameObject(GameObject* gobj)
 {
-	const int CLOTH_SIZE = 6;
-	const float UNIT_LENGTH = 0.081;
-	vector<vector<int>> p;
-
-	for (int x = 0; x < CLOTH_SIZE; x++) {
-		vector<int> row;
-		for (int z = 0; z < CLOTH_SIZE; z++) {
-			bool isFixed = false;
-			Vec3 v = Vec3(0, 0, 0);
-			float y = 0.5;
-			if(x == 0 || z == 0 || x == CLOTH_SIZE - 1 || z == CLOTH_SIZE - 1)
-				isFixed = true;
-
-			row.push_back(addMassPoint(mass, Vec3(x * UNIT_LENGTH - (CLOTH_SIZE / 2) * UNIT_LENGTH, y, z * UNIT_LENGTH - (CLOTH_SIZE / 2) * UNIT_LENGTH), v, isFixed));
-		}
-		p.push_back(row);
-	}
-
-	// Structural
-	for (int x = 0; x < CLOTH_SIZE; x++) {
-		for (int z = 0; z < CLOTH_SIZE; z++) {
-			//STRUCTURAL
-			if (z + 1 < CLOTH_SIZE) 
-				addSpring(damping, stiffness, p[x][z], p[x][z + 1], UNIT_LENGTH);
-			if (x + 1 < CLOTH_SIZE) 
-				addSpring(damping, stiffness, p[x][z], p[x + 1][z], UNIT_LENGTH);
-
-			//SHEAR	
-			if (x + 1 < CLOTH_SIZE && z + 1 < CLOTH_SIZE) 
-				addSpring(damping, stiffness, p[x][z], p[x + 1][z + 1], sqrt(pow(UNIT_LENGTH, 2) + pow(UNIT_LENGTH, 2)));
-			if (x - 1 >= 0 && z + 1 < CLOTH_SIZE) 
-				addSpring(damping, stiffness, p[x][z], p[x - 1][z + 1], sqrt(pow(UNIT_LENGTH, 2) + pow(UNIT_LENGTH, 2)));
-
-			//FLEXION
-			if (x + 2 < CLOTH_SIZE) 
-				addSpring(damping, stiffness, p[x][z], p[x + 2][z], UNIT_LENGTH * 2.0);
-			if (z + 2 < CLOTH_SIZE) 
-				addSpring(damping, stiffness, p[x][z], p[x][z + 2], UNIT_LENGTH * 2.0);
-
-		}
-	}
-}
-
-void RigidBodySystemSimulator::createBox(float mass, float damping, float stiffness, const Vec3& center, const float size)
-{
-	int istart = _points.size() - 1;
-
-	this->addMassPoint(mass, center + Vec3(size, -size, size), ZERO_VEC, false);
-	this->addMassPoint(mass, center + Vec3(size, size, size), ZERO_VEC, false);
-	this->addMassPoint(mass, center + Vec3(-size, size, size), ZERO_VEC, false);
-	this->addMassPoint(mass, center + Vec3(-size, -size, size), ZERO_VEC, false);
-
-	this->addMassPoint(mass, center + Vec3(size, -size, -size), ZERO_VEC, false);
-	this->addMassPoint(mass, center + Vec3(size, size, -size), ZERO_VEC, false);
-	this->addMassPoint(mass, center + Vec3(-size, size, -size), ZERO_VEC, false);
-	this->addMassPoint(mass, center + Vec3(-size, -size, -size), ZERO_VEC, false);
-
-	//connects all points with each other
-	for (int i = 1; i <= 8; i++) {
-		for (int j = 1; j <= 8; j++) {
-			if (j > i) {
-				this->addSpring(damping, stiffness, istart + i, istart + j);
-			}
-		}
-	}
+	objects.push_back(gobj);
 }
 
 void RigidBodySystemSimulator::collisionResolve(
 	const float& deltaTime)
 {
 	collisionRigidBodies(deltaTime);
-	if (_enableFloorCollision) {
-		collisionPLane(deltaTime, Vec3(0, 1, 0), -0.5, 43);
-	}
-	if (_enableWallCollision) {
-		collisionPLane(deltaTime, Vec3(1, 0, 0), -0.5, 0.1);
-		collisionPLane(deltaTime, Vec3(-1, 0, 0), -0.5, 0.1);
-		collisionPLane(deltaTime, Vec3(0, 0, 1), -0.5, 0.1);
-		collisionPLane(deltaTime, Vec3(0, 0, -1), -0.5, 0.1);
-	}
+	collisionPLane(deltaTime, Vec3(0, 1, 0), -0.5, 1);
 }
+
 void RigidBodySystemSimulator::collisionPLane(
 	const float& deltaTime,
 	const Vec3& n, const float offset, const float friction)
 {
 	const float dynFriction = friction * 0.8;
-	const int POINT_SIZE = _points.size();
-	const int BODY_SIZE = _rigidbodies.size();
+	const float possoft = 0.05;
+	const float velsoft = 0.5;
+	const float c = 0.05;
 
-	for (int pid = 0; pid < POINT_SIZE; pid++) {
-		PointMass& p = _points[pid];
-		if (p._isBullet)
-			break;
-		if (!p._isFixed) {
-			float dist = dot(p._position, n) - p._radius;
-			Vec3 vel = p._velocity - (_enableGraviy ? dot(_gravity, n) * deltaTime : 0) * n;
-			float vdot = dot(vel, n);
-			if (dist < offset && vdot < 0) {
-				const float c = 0;
-				float J = (-(1 + c) * vdot) * p._mass;
-				const Vec3 Jn = J * n;
+	Plane plane;
+	plane.normal = n;
+	plane.offset = offset;
+	plane.sfriction = friction;
+	plane.dfriction = dynFriction;
 
-				Vec3 parallelDir = vel - n * vdot;
-				float parallelnorm = normalize(parallelDir);
+	for (auto cit = Collider::dict.begin(); cit != Collider::dict.end(); ++cit)
+	{
+		Collider* collider = cit->second;
 
-				float fNormal = dot(p._force, n);
-				if (fNormal < 0) {
-					Vec3 tangent = p._force - n * fNormal;
-					float fTangent = normalize(tangent);
-					if (parallelnorm > EPS) {
-						p._force -= dynFriction * parallelnorm * -fNormal * parallelDir;
-					}
-					else {
-						// static
-						p._force -= min(fTangent, friction * -fNormal) * tangent;
-						p._velocity -= dot(p._velocity, parallelDir) * parallelDir;
-					}
+		if ((collider->filter & 1) == 0)
+			continue;
+
+		ContactInfo hit = collider->collisionTest(&plane);
+
+		if (hit.isValid) {
+			Rigidbody* rigidbody = collider->rigidbody;
+			if (collider->isTrigger) {
+				const auto it = colliderMap.find(collider->id);
+				if (it != colliderMap.end()) {
+					it->second->onCollisionEnter(nullptr);
+				}
+				continue;
+			}
+
+			if (rigidbody != nullptr && !rigidbody->isFixed) {
+				float iM0 = rigidbody->inverseMass;
+				Mat3 iI0;
+				iI0.setZero();
+				if (!rigidbody->fixRotation) {
+					iI0 = rigidbody->inverseInertia;
 				}
 
-				p._position += (offset - dist) * n;
-				p._velocity += Jn * p._invMass;
-				
-			}
-		}
-	}
-	std::vector<Contact> hits;
-	for (int bid = 0; bid < BODY_SIZE; bid++) {
-		RigidBody& body = _rigidbodies[bid];
-		if (!body._isSleep && !body._isFixed && body.planeContact(n, offset, hits)) {
-			Vec3 accPos(0, 0, 0);
-			Vec3 accVel(0, 0, 0);
-			Vec3 accAng(0, 0, 0);
+				const Vec3 x0 = (hit.point - rigidbody->worldCoM);
+				const Vec3& n = hit.normal;
 
-			const float weight = 1.0;
+				Vec3 vrel = rigidbody->velocity + 
+					cross(rigidbody->angularVelocity, x0)
+					- (dot(_gravity, n) * deltaTime) * n;
 
-			float iM0 = body._invMass;
-			Mat3 iI0 = body._worldInvInertia;
-			for (int cid = 0; cid < hits.size(); cid++) {
-				Contact& hit = hits[cid];
-				const Vec3 x0 = (hit.contactPoint - body._worldCom);
-				const Vec3& n = hit.contactNormal;
-				Vec3 vrel = body._velocity + cross(body._angularVelocity, x0) 
-					- (_enableGraviy ? dot(_gravity, n) * deltaTime : 0) * n;
 				float vdot = dot(vrel, n);
 
-				Vec3 parallelDir = vrel - n * vdot;
-				double parallelnorm = normalize(parallelDir);
-
-				float fNormal = dot(body._force, n);
-				if (fNormal < 0) {
-					Vec3 tangent = body._force - n * fNormal;
-					float fTangent = normalize(tangent);
-					if (parallelnorm > EPS) {
-						Vec3 dynamicFriction = -(dynFriction + body._friction) * 0.5f 
-							* parallelnorm * -fNormal * parallelDir;
-						body.addExternalForce(dynamicFriction, hit.contactPoint);
-					}
-					else {
-						// static
-						Vec3 staticFriction = -min(fTangent, 
-							(friction + body._friction) * 0.5f * -fNormal) * tangent;
-						body.addExternalForce(staticFriction, hit.contactPoint);
-						body._velocity -= dot(body._velocity, parallelDir) * parallelDir;
-					}
-				}
-
 				if (vdot < 0) {
-					const float c = 0;
 					float J = (-(1 + c) * vdot) /
 						(iM0 + dot(
 							cross(iI0.dot(cross(x0, n)), x0), n));
 					const Vec3 Jn = J * n;
-					accVel += weight * Jn * iM0;
-					accAng += weight * cross(x0, Jn);
+					rigidbody->velocity += Jn * iM0 * velsoft;
+					rigidbody->angularMomentum += cross(x0, Jn) * velsoft;
 				}
-				accPos += weight * n * hit.contactDistance;
-			}
 
-			if ((normNoSqrt(accVel) + normNoSqrt(accAng)) > 1e-5) {
-				body.wake();
-				body._position += accPos;
-				body._velocity += accVel;
-				body._angularMomentum += accAng;
+				rigidbody->transform->position += n * hit.depth * possoft;
+
+				Vec3 vTangent = vrel - (n * vdot);
+				float fNormal = dot(rigidbody->force, n);
+				if (fNormal < 0) {
+					if (norm(vTangent) > 1e-2) {
+						Vec3 dynamicFriction = -(dynFriction + rigidbody->friction) * 0.5f
+							* (-fNormal) * vTangent;
+						rigidbody->addForce(dynamicFriction, hit.point);
+					}
+					else{
+						Vec3 fTangent = rigidbody->force - (n * fNormal);
+						float fTangNorm = norm(fTangent);
+						if (fTangNorm > 0) {
+							// static
+							Vec3 staticFriction = min(-fTangent,
+								-(friction + rigidbody->friction) * 0.5f * (-fNormal) * fTangent / fTangNorm);
+							rigidbody->addForce(staticFriction, hit.point);
+						}
+					}
+				}
 			}
 		}
 	}
@@ -841,314 +386,199 @@ void RigidBodySystemSimulator::collisionPLane(
 
 void RigidBodySystemSimulator::collisionRigidBodies(const float& deltaTime)
 {
-	const int POINT_SIZE = _points.size();
-	const int BODY_SIZE = _rigidbodies.size();
-	// points to rigidbodies
-	for (int pid = 0; pid < POINT_SIZE; pid++) {
-		PointMass& p = _points[pid];
-		for (int bid = 0; bid < BODY_SIZE; bid++) {
-			RigidBody& body = _rigidbodies[bid];
-			if ((p._isFixed) && (body._isSleep || body._isFixed))
+	const float bounciness = 0.0;
+	const float possoft = 0.03;
+	const float velsoft = 0.5;
+	for (auto cit0 = Collider::dict.begin(); cit0 != Collider::dict.end(); ++cit0)
+	{
+		Collider* collider0 = cit0->second;
+		Rigidbody* b0 = collider0->rigidbody;
+
+		for (auto cit1 = std::next(cit0); cit1 != Collider::dict.end(); ++cit1)
+		{
+			Collider* collider1 = cit1->second;
+			Rigidbody* b1 = collider1->rigidbody; 
+
+			if ((collider0->filter & collider1->layer) == 0 && ((collider1->filter & collider0->layer) == 0))
 				continue;
-			// fast check with simple test first
-			if (body.isOverlapCoarse(p._position, p._radius)) {
-				Contact hit;
-				if (body.pointContact(p._position, p._radius, hit)) {
-					float iM0 = 0;
-					float iM1 = 0;
-					Mat3 iI0;
-					Vec3 v0(0, 0, 0);
-					Vec3 v1(0, 0, 0);
-					const Vec3 x0 = (hit.contactPoint - body._worldCom);
-					const Vec3& n = hit.contactNormal;
 
-					if (!body._isFixed) {
-						iM0 = body._invMass;
-						iI0 = body._worldInvInertia;
-						v0 = body._velocity + cross(body._angularVelocity, x0);
+			if ((b0 == nullptr || b0->isFixed)
+				&& (b1 == nullptr || b1->isFixed))
+				continue;
+
+			ContactInfo hit = collider0->collisionTest(collider1);
+
+			if (hit.isValid) {
+				if (collider0->isTrigger) {
+					const auto it = colliderMap.find(collider0->id);
+					if (it != colliderMap.end()) {
+						it->second->onCollisionEnter(collider1);
 					}
-					if (!p._isFixed) {
-						iM1 = p._invMass;
-						v1 = p._velocity;
+					continue;
+				}
+				else if (collider1->isTrigger) {
+					const auto it = colliderMap.find(collider1->id);
+					if (it != colliderMap.end()) {
+						it->second->onCollisionEnter(collider0);
 					}
-					Vec3 vrel = v0 - v1;
-					float vdot = dot(vrel, n);
-					const float c = 0;
-					float J = (-(1 + c) * vdot) /
-						(iM0 + iM1 + dot(
-							cross(iI0.dot(cross(x0, n)), x0), n));
+					continue;
+				}
 
-					if (vdot < 0 || body._isFixed) {
-						const Vec3 Jn = J * n;
-						if (!body._isFixed) {
-							float w0 = 1;
-							if (!p._isFixed) {
-								w0 = (p._mass / (body._mass + p._mass));
-							}
-							Vec3 posDiff = w0 * hit.contactDistance * hit.contactNormal;
-							Vec3 velDiff = Jn * iM0;
-							Vec3 angDiff = cross(x0, Jn);
-							if ((normNoSqrt(velDiff) + normNoSqrt(angDiff) + normNoSqrt(posDiff)) > 1e-6) {
-								body.wake();
-								body._position += posDiff;
-								body._velocity += velDiff;
-								body._angularMomentum += angDiff;
-							}
-							//body._force = ZERO_VEC;
-							//body._torque = ZERO_VEC;
-						}
-						if (!p._isFixed) {
-							float w1 = 1;
-							if (!body._isFixed) {
-								w1 = (body._mass / (body._mass + p._mass));
-							}
-							p._position += w1 * -hit.contactDistance * hit.contactNormal;
-							p._velocity += -Jn * iM1;
-							p._force = ZERO_VEC;
-						}
+				float iM0 = 0;
+				float iM1 = 0;
+				Mat3 iI0;
+				Mat3 iI1;
+				Vec3 v0(0, 0, 0);
+				Vec3 v1(0, 0, 0);
+				const Vec3 x0 = (hit.point - b0->worldCoM);
+				const Vec3 x1 = (hit.point - b1->worldCoM);
+				const Vec3& n = hit.normal;
 
-						const float friction = body._friction;
-						Vec3 tangent = vrel - vdot * n;
-						float tangentVel = normalize(tangent);
-						const Vec3 uJt = -friction * (J + max(0.0, dot(body._force - p._force, n)))
-							* tangentVel * tangent;
-						body.addExternalForce(uJt, hit.contactPoint);
-						p._force -= uJt;
+				if (!b0->isFixed) {
+					iM0 = b0->inverseMass;
+					iI0 = b0->worldInvInertia;
+				}
+
+				if (collider0->passForceToBodyAndUsePointDynamic) {
+					v0 = collider0->pointBasedVelocity;
+				}
+				else {
+					v0 = b0->velocity +
+						cross(b0->angularVelocity, x0);
+				}
+
+				if (!b1->isFixed) {
+					iM1 = b1->inverseMass;
+					iI1 = b1->worldInvInertia;
+				}
+
+				if (collider1->passForceToBodyAndUsePointDynamic) {
+					v1 = collider1->pointBasedVelocity;
+				}
+				else {
+					v1 = b1->velocity +
+						cross(b1->angularVelocity, x1);
+				}
+
+				Vec3 vrel = v0 - v1;
+				float vdot = dot(vrel, n);
+				const float c = bounciness;
+				float J = (-(1 + c) * vdot) /
+					(iM0 + iM1 + dot(
+						cross(iI0.dot(cross(x0, n)), x0) +
+						cross(iI1.dot(cross(x1, n)), x1), n));
+				
+				if (vdot < 0) {
+					const Vec3 Jn = J * n;
+
+					if (!b0->isFixed) {
+						float w0 = 1;
+						if (!b1->isFixed) {
+							w0 = (b1->mass / (b0->mass + b1->mass));
+						}
+						b0->transform->position += w0 * hit.depth * n * possoft;
+						b0->velocity += Jn * iM0 * velsoft;
+						b0->angularMomentum += cross(x0, Jn) * velsoft;
+					}
+					if (!b1->isFixed) {
+						float w1 = 1;
+						if (!b0->isFixed) {
+							w1 = (b0->mass / (b0->mass + b1->mass));
+						}
+						b1->transform->position -= w1 * hit.depth * n * possoft;
+						b1->velocity += -Jn * iM1 * velsoft;
+						b1->angularMomentum += cross(x1, -Jn) * velsoft;
+					}
+
+					Vec3 vTangent = vrel - (n * vdot);
+					float fNormal = dot(b0->force - b1->force, n);
+					if (fNormal < 0) {
+						if (norm(vTangent) > 1e-2) {
+							Vec3 dynamicFriction = -(b0->friction + b1->friction) * 0.8f * 0.5f
+								* (-fNormal) * vTangent;
+							b0->addForce(dynamicFriction, hit.point);
+							b1->addForce(-dynamicFriction, hit.point);
+						}
+						else {
+							Vec3 fTangent = (b0->force - b1->force) - (n * fNormal);
+							float fTangNorm = norm(fTangent);
+							if (fTangNorm > 0) {
+								// static
+								Vec3 staticFriction = min(-fTangent,
+									-(b0->friction + b1->friction) * 0.5f * (-fNormal) * fTangent / fTangNorm);
+								b0->addForce(staticFriction, hit.point);
+								b1->addForce(-staticFriction, hit.point);
+							}
+						}
 					}
 				}
 			}
 		}
 	}
-	// rigidbodies to rigidbodies
-	for (int bid = 0; bid < BODY_SIZE; bid++) {
-		RigidBody& b0 = _rigidbodies[bid];
-		for (int cid = bid+1; cid < BODY_SIZE; cid++) {
-			RigidBody& b1 = _rigidbodies[cid];
-			if ((b0._isSleep || b0._isFixed) && (b1._isSleep || b1._isFixed))
-				continue;
-			// fast check with simple test first
-			if (b0.isOverlapCoarse(b1._coarseCenter, b1._coarseRadius)) 
-			{
-				// check with the provided method
-				CollisionInfo hit = checkCollisionSAT(
-					b0._renderTransformation, b1._renderTransformation);
-				// rigidbody collides
-				if (hit.isValid) {
-					// handle collision
-					b0.wake();
-					b1.wake();
-					// might be better to update the sleep states at once later 
-					// since the property is used in the previous if/else check
-					float iM0 = 0;
-					float iM1 = 0;
-					Mat3 iI0;
-					Mat3 iI1;
-					Vec3 v0(0, 0, 0);
-					Vec3 v1(0, 0, 0);
-					const Vec3 x0 = (hit.collisionPointWorld - b0._worldCom);
-					const Vec3 x1 = (hit.collisionPointWorld - b1._worldCom);
-					const Vec3& n = hit.normalWorld;
-					if (!b0._isFixed) {
-						iM0 = b0._invMass;
-						iI0 = b0._worldInvInertia;
-						v0 = b0._velocity + cross(b0._angularVelocity, x0);
-					}
-					if (!b1._isFixed) {
-						iM1 = b1._invMass;
-						iI1 = b1._worldInvInertia;
-						v1 = b1._velocity + cross(b1._angularVelocity, x1);
-					}
-					Vec3 vrel = v0 - v1;
-					float vdot = dot(vrel, n);
-					const float c = 0;
-					float J = (-(1 + c) * vdot) /
-						(iM0 + iM1 + dot(
-							cross(iI0.dot(cross(x0, n)), x0) +
-							cross(iI1.dot(cross(x1, n)), x1), n));
-					if (vdot < 0) {
-						const Vec3 Jn = J * n;
-						
-						if (!b0._isFixed) {
-							float w0 = 1;
-							if (!b1._isFixed) {
-								w0 = (b1._mass / (b0._mass + b1._mass));
-							}
-							b0._position += w0 * hit.depth * n;
-							b0._velocity += Jn * iM0;
-							b0._angularMomentum += cross(x0, Jn);
-						}
-						if (!b1._isFixed) {
-							float w1 = 1;
-							if (!b0._isFixed) {
-								w1 = (b0._mass / (b0._mass + b1._mass));
-							}
-							b1._position -= w1 * hit.depth * n;
-							b1._velocity += -Jn * iM1;
-							b1._angularMomentum -= cross(x1, Jn);
-						}
+}
 
-						const float friction = (b0._friction + b1._friction) * 0.5;
-						Vec3 tangent = vrel - vdot * n;
-						float tangentVel = normalize(tangent);
-						const Vec3 uJt = -friction * (J + max(0.0, dot(b0._force - b1._force, n)))
-							* tangentVel * tangent;
-						b0.addExternalForce(uJt, hit.collisionPointWorld);
-						b1.addExternalForce(-uJt, hit.collisionPointWorld);
-					}
-				}
-			}
-		}
+void RigidBodySystemSimulator::updateTransformations()
+{
+	for (int i = 0; i < objects.size(); i++) {
+		objects[i]->update();
 	}
+	for (int i = 0; i < customObjects.size(); i++) {
+		customObjects[i]->update();
+	}
+	player.updateTransformations();
 }
 
 void RigidBodySystemSimulator::computeSpringForce()
 {
-	const int SPRING_SIZE = _springs.size();
-
-	// force computation
-	// calculate internal forces (spring forces)
-	for (int sid = 0; sid < SPRING_SIZE; sid++) {
-		const Spring& s = _springs[sid];
-
-		int pid0 = s._pointID0;
-		int pid1 = s._pointID1;
-
-		PointMass& p0 = _points[pid0];
-		PointMass& p1 = _points[pid1];
-
-		// hook's law
-		Vec3 v0 = p0._position - p1._position;
-		float length = normalize(v0);
-		// forces
-		Vec3 f0 = -(s._stiffness) * (length - s._restLength) * v0
-			- s._damping * dot(p0._velocity - p1._velocity, v0) * v0;
-		p0._force += f0;
-		p1._force += -f0;
+	for (auto sit = Spring::dict.begin(); sit != Spring::dict.end(); ++sit)
+	{
+		sit->second->applyForce();
 	}
 }
 
-void RigidBodySystemSimulator::dampingForce()
+void RigidBodySystemSimulator::applyDamping(const float& timeStep)
 {
-	const int POINT_SIZE = _points.size();
-	const int BODY_SIZE = _rigidbodies.size();
 	// damping forces
-	for (int pid = 0; pid < POINT_SIZE; pid++) {
-		PointMass& p = _points[pid];
-		if (p._isBullet)
-			break;
-		p._force += -_linearDamping * p._velocity;
-	}
-	for (int rid = 0; rid < BODY_SIZE; rid++) {
-		RigidBody& body = _rigidbodies[rid];
-		body._force += -_linearDamping * body._velocity;
-		body._torque += -_angularDamping * body._angularVelocity;
-	}
-}
+	for (auto rit = Rigidbody::dict.begin(); rit != Rigidbody::dict.end(); ++rit)
+	{
+		Rigidbody* rigidbody = rit->second;
+		if (rigidbody->isFixed)
+			continue;
 
-int RigidBodySystemSimulator::getNumberOfRigidBodies()
-{
-	return _rigidbodies.size();
-}
-
-Vec3 RigidBodySystemSimulator::getPositionOfRigidBody(int i)
-{
-	return _rigidbodies[i]._position;
-}
-
-Vec3 RigidBodySystemSimulator::getLinearVelocityOfRigidBody(int i)
-{
-	return _rigidbodies[i]._velocity;
-}
-
-Vec3 RigidBodySystemSimulator::getAngularVelocityOfRigidBody(int i)
-{
-	return _rigidbodies[i]._angularVelocity;
-}
-
-void RigidBodySystemSimulator::applyForceOnBody(int i, Vec3 loc, Vec3 force)
-{
-	_rigidbodies[i].addExternalForce(force, loc);
-}
-
-void RigidBodySystemSimulator::addRigidBody(Vec3 position, Vec3 size, int mass, bool fixed)
-{
-	_rigidbodies.push_back(RigidBody(mass, size, position, fixed));
-}
-
-void RigidBodySystemSimulator::setOrientationOf(int i, Quat orientation)
-{
-	_rigidbodies[i]._orientation = orientation;
-	_rigidbodies[i].updateTransofmration();
-}
-
-void RigidBodySystemSimulator::setVelocityOf(int i, Vec3 velocity)
-{
-	_rigidbodies[i]._velocity = velocity;
-}
-
-void RigidBodySystemSimulator::applyExternalForce()
-{
-	if (_isDragging && _dragIndex != -1) {
-		if (_dragType == 0 && !_points[_dragIndex]._isFixed) {
-			const float sitffness = _externalSpringForce;
-			// hook's law
-			Vec3 v0 = _points[_dragIndex]._position - _dragMousePoint;
-			float length = normalize(v0);
-			// forces
-			_points[_dragIndex]._force += -sitffness * length * v0;
-		}
-		else if (_dragType == 1 && !_rigidbodies[_dragIndex]._isFixed) {
-			RigidBody& body = _rigidbodies[_dragIndex];
-			const float sitffness = _externalSpringForce;
-			// hook's law
-			Vec3 dragWorldPoint = body._transformation.transformVector(_dragObjectPoint);
-			Vec3 v0 = dragWorldPoint - _dragMousePoint;
-			float length = normalize(v0);
-			// forces
-			Vec3 force = -sitffness * length * v0;
-			if (normNoSqrt(force) > 1e-5) {
-				_rigidbodies[_dragIndex].wake();
-				_rigidbodies[_dragIndex].addExternalForce(force, dragWorldPoint);
-			}
-		}
+		rigidbody->velocity +=
+			timeStep * (-_linearDamping * rigidbody->velocity / rigidbody->mass);
+		rigidbody->angularMomentum +=
+			timeStep * -_angularDamping * rigidbody->angularVelocity;
 	}
 }
 
 void RigidBodySystemSimulator::updatePosition(const float& timeStep)
 {
-	const int POINT_SIZE = _points.size();
-	const int BODY_SIZE = _rigidbodies.size();
+	for (auto rit = Rigidbody::dict.begin(); rit != Rigidbody::dict.end(); ++rit)
+	{
+		Rigidbody* rigidbody = rit->second;
+		Transform* transform = rigidbody->transform;
 
-	for (int pid = 0; pid < POINT_SIZE; pid++) {
-		PointMass& p = _points[pid];
-		if (!p._isFixed)
-		{
-			p._lastPosition = p._position;
-			p._position = p._position + p._velocity * timeStep;
+		if (rigidbody->isFixed) {
+			
 		}
-	}
-	for (int rid = 0; rid < BODY_SIZE; rid++) {
-		RigidBody& body = _rigidbodies[rid];
-		if (!body._isFixed && !body._isSleep)
-		{
-			body._lastPosition = body._position;
-			body._position = body._position + body._velocity * timeStep;
-			const Vec3& vw = body._angularVelocity;
-			Quat w(vw.x, vw.y, vw.z, 0);
-			//[TODO] WTF ?? This order below is incorrect in my opinion, 
-			// but it will pass the unit test ???
-			//body._orientation += (timeStep * 0.5)  * body._orientation * w;
-			//
-			body._orientation += (timeStep * 0.5) * w * body._orientation;
-			float quatnorm = body._orientation.norm();
-			if (quatnorm == 0)
-			{
-				body._orientation = Quat(0, 0, 0, 1);
+		else {
+			transform->position +=
+				rigidbody->velocity * timeStep;
+			
+			if (!rigidbody->fixRotation) {
+				const Vec3& vw = rigidbody->angularVelocity;
+				Quat w(vw.x, vw.y, vw.z, 0);
+				transform->rotation += (timeStep * 0.5) * w * transform->rotation;
+				float quatnorm = transform->rotation.norm();
+				if (quatnorm == 0)
+				{
+					transform->rotation = Quat(0, 0, 0, 1);
+				}
+				else {
+					transform->rotation /= quatnorm;
+				}
 			}
-			else {
-				body._orientation /= quatnorm;
-			}
-			body.updateTransofmration();
 		}
 	}
 }
@@ -1156,107 +586,96 @@ void RigidBodySystemSimulator::updatePosition(const float& timeStep)
 void RigidBodySystemSimulator::updateVelocity(
 	const float& timeStep)
 {
-	const int POINT_SIZE = _points.size();
-	const int BODY_SIZE = _rigidbodies.size();
+	for (auto rit = Rigidbody::dict.begin(); rit != Rigidbody::dict.end(); ++rit)
+	{
+		Rigidbody* rigidbody = rit->second;
+		Transform* transform = rigidbody->transform;
 
-	for (int pid = 0; pid < POINT_SIZE; pid++) {
-		PointMass& p = _points[pid];
-		if (!p._isFixed)
-		{
-			p._acceleration = p._force / (p._mass);
-			p._velocity = p._velocity + p._acceleration * timeStep;
+		if (rigidbody->isFixed) {
+
 		}
 		else {
-			p._acceleration = ZERO_VEC;
-			p._velocity = ZERO_VEC;
-		}
-	}
-	for (int rid = 0; rid < BODY_SIZE; rid++) {
-		RigidBody& body = _rigidbodies[rid];
-		if (!body._isFixed)
-		{
-			if (!body._isSleep) {
-				body._velocity += timeStep * (body._force / body._mass);
-				body._angularMomentum += timeStep * body._torque;
-				/*Vec3 localL = 
-					body._invTransformation.transformVectorNormal(body._angularMomentum);
-				Vec3 localW = body._invInertia.dot(localL);
-				body._angularVelocity = body._transformation.transformVectorNormal(localW);*/
-				body._angularVelocity = body._worldInvInertia.dot(body._angularMomentum);
-				body.checkSleep();
+			if (rigidbody->fixRotation) {
+				rigidbody->angularMomentum = Vec3(0,0,0);
+				rigidbody->angularVelocity = Vec3(0,0,0);
+			} else {
+				rigidbody->velocity += 
+					timeStep * (rigidbody->force / rigidbody->mass);
+				rigidbody->angularMomentum += 
+					timeStep * rigidbody->torque;
+				rigidbody->angularVelocity = 
+					rigidbody->worldInvInertia.dot(rigidbody->angularMomentum);
 			}
 		}
-		else {
-			body._velocity = ZERO_VEC;
-			body._angularVelocity = ZERO_VEC;
-		}
+	}
+}
+
+void RigidBodySystemSimulator::deleteObjects()
+{
+	colliderMap.clear();
+	for (auto& o : objects) {
+		delete o;
+	}
+	objects.clear();
+	for (auto& o : customObjects) {
+		delete o;
+	}
+	customObjects.clear();
+}
+
+void RigidBodySystemSimulator::onStepStart(const float dt)
+{
+	for (auto cit = Collider::dict.begin(); cit != Collider::dict.end(); ++cit)
+	{
+		Collider* collider = cit->second;
+		collider->lastPosition = collider->transform->position;
+	}
+}
+
+void RigidBodySystemSimulator::onStepEnd(const float dt)
+{
+	for (auto cit = Collider::dict.begin(); cit != Collider::dict.end(); ++cit)
+	{
+		Collider* collider = cit->second;
+		collider->pointBasedVelocity = (collider->transform->position - collider->lastPosition) / dt;
 	}
 }
 
 void RigidBodySystemSimulator::integrateExplicitEuler(const float& timeStep)
 {
-	if (_enableGraviy) {
-		applyGravity(_gravity);
-	}
-	computeSpringForce();
-	dampingForce();
-	if (_enableCollision) {
-		collisionResolve(timeStep);
-	}
-	applyExternalForce();
-	updatePosition(timeStep);
-	updateVelocity(timeStep);
-	clearForce();
-}
+	applyGravity(_gravity);
+	applyDamping(timeStep);
 
-void RigidBodySystemSimulator::integrateLeapfrog(const float& timeStep)
-{
-	if (_enableGraviy) {
-		applyGravity(_gravity);
-	}
+	player.onUpdate(timeStep);
+
 	computeSpringForce();
-	dampingForce();
-	applyExternalForce();
-	updateVelocity(timeStep);
+
+	collisionResolve(timeStep);
+
 	updatePosition(timeStep);
+	updateTransformations();
+	updateVelocity(timeStep);
+
 	clearForce();
-	if (_enableCollision) {
-		collisionResolve(timeStep);
-	}
 }
 
 void RigidBodySystemSimulator::clearForce()
 {
-	const int POINT_SIZE = _points.size();
-	const int BODY_SIZE = _rigidbodies.size();
-
-	// clear forces from last step
-	for (int pid = 0; pid < POINT_SIZE; pid++) {
-		_points[pid]._force = ZERO_VEC;
-	}
-	for (int rid = 0; rid < BODY_SIZE; rid++) {
-		_rigidbodies[rid]._force = ZERO_VEC;
-		_rigidbodies[rid]._torque = ZERO_VEC;
+	for (auto rit = Rigidbody::dict.begin(); rit != Rigidbody::dict.end(); ++rit)
+	{
+		Rigidbody* rigidbody = rit->second;
+		rigidbody->force = ZERO_VEC;
+		rigidbody->torque = ZERO_VEC;
 	}
 }
 
 void RigidBodySystemSimulator::applyGravity(const Vec3& g)
 {
-	const int POINT_SIZE = _points.size();
-	const int BODY_SIZE = _rigidbodies.size();
-	// external forces
-	for (int pid = 0; pid < POINT_SIZE; pid++) {
-		if (_points[pid]._isBullet)
-			break;
-		_points[pid]._force += _points[pid]._mass * g;
+	for (auto rit = Rigidbody::dict.begin(); rit != Rigidbody::dict.end(); ++rit)
+	{
+		Rigidbody* rigidbody = rit->second;
+		if (!rigidbody->isFixed) {
+			rigidbody->force += rigidbody->mass * g;
+		}
 	}
-	for (int rid = 0; rid < BODY_SIZE; rid++) {
-		_rigidbodies[rid]._force += _rigidbodies[rid]._mass * g;
-	}
-}
-
-RigidBodySystemSimulator::Bullet::Bullet(int index_, float lifeTime_)
-{
-	this->index = index_;
-	this->lifeTime = lifeTime_;
 }

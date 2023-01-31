@@ -11,14 +11,18 @@
 // DirectX includes
 #include <DirectXMath.h>
 #include "util/vectorbase.h"
+#include "CommonStates.h"
+
 // Internal includes
 #include "util/util.h"
 #include "util/FFmpeg.h"
 
+#include <Windows.h>
+
 using namespace DirectX;
 using namespace GamePhysics;
 
-//#define ADAPTIVESTEP
+#define ADAPTIVESTEP
 
 //#define TEMPLATE_DEMO
 //#define MASS_SPRING_SYSTEM
@@ -94,15 +98,14 @@ bool CALLBACK ModifyDeviceSettings( DXUTDeviceSettings* pDeviceSettings, void* p
 	return true;
 }
 
-
 //--------------------------------------------------------------------------------------
 // Create any D3D11 resources that aren't dependent on the back buffer
 //--------------------------------------------------------------------------------------
 HRESULT CALLBACK OnD3D11CreateDevice( ID3D11Device* pd3dDevice, const DXGI_SURFACE_DESC* pBackBufferSurfaceDesc, void* pUserContext )
 {
-	
 	HRESULT hr;
     ID3D11DeviceContext* pd3dImmediateContext = DXUTGetD3D11DeviceContext();
+
 	g_pDUC->init(pd3dDevice,pd3dImmediateContext);
     std::wcout << L"Device: " << DXUTGetDeviceStats() << std::endl;
     // Load custom effect from "effect.fxo" (compiled "effect.fx")
@@ -114,7 +117,8 @@ HRESULT CALLBACK OnD3D11CreateDevice( ID3D11Device* pd3dDevice, const DXGI_SURFA
 	}
     // Init AntTweakBar GUI
 	TwInit(TW_DIRECT3D11, pd3dDevice);
-	g_pDUC->g_pTweakBar = TwNewBar("TweakBar");
+	g_pDUC->g_pTweakBar = TwNewBar("TweakBar");	
+
 	return S_OK;
 }
 
@@ -146,6 +150,7 @@ void CALLBACK OnD3D11ReleasingSwapChain( void* pUserContext )
 //--------------------------------------------------------------------------------------
 // Handle key presses
 //--------------------------------------------------------------------------------------
+bool display_cursor = false;
 void CALLBACK OnKeyboard( UINT nChar, bool bKeyDown, bool bAltDown, void* pUserContext )
 {
     HRESULT hr;
@@ -158,6 +163,13 @@ void CALLBACK OnKeyboard( UINT nChar, bool bKeyDown, bool bAltDown, void* pUserC
 			case VK_RETURN :
 			{
 				if(bAltDown) DXUTToggleFullScreen();
+				break;
+			}
+
+			case VK_SPACE:
+			{
+				ShowCursor(display_cursor);
+				display_cursor = !display_cursor;
 				break;
 			}
             // F8: Take screenshot
@@ -186,7 +198,19 @@ void CALLBACK OnKeyboard( UINT nChar, bool bKeyDown, bool bAltDown, void* pUserC
                     g_pFFmpegVideoRecorder->StopRecording();
                     SAFE_DELETE(g_pFFmpegVideoRecorder);
                 }
-            }			    
+				break;
+            }	
+			default:
+				g_pSimulator->onKeyboardPressed(nChar);
+				break;
+		}
+	}
+	else {
+		switch (nChar)
+		{
+		default:
+			g_pSimulator->onKeyboardReleased(nChar);
+			break;
 		}
 	}
 }
@@ -207,6 +231,7 @@ void CALLBACK OnMouse( bool bLeftButtonDown, bool bRightButtonDown, bool bMiddle
 	{
 		g_pSimulator->onMouse(xPos, yPos);
 	}
+	//SetCursorPos(g_pDUC->g_windowSize[0] / 2, g_pDUC->g_windowSize[1] / 2);
 }
 
 
@@ -298,17 +323,20 @@ void CALLBACK OnD3D11FrameRender( ID3D11Device* pd3dDevice, ID3D11DeviceContext*
 
 	ID3D11RenderTargetView* pRTV = DXUTGetD3D11RenderTargetView();
 	ID3D11DepthStencilView* pDSV = DXUTGetD3D11DepthStencilView();
-	pd3dImmediateContext->ClearRenderTargetView( pRTV, ClearColor );
-	pd3dImmediateContext->ClearDepthStencilView( pDSV, D3D11_CLEAR_DEPTH, 1.0f, 0 );
+	// 
+	pd3dImmediateContext->ClearRenderTargetView(pRTV, ClearColor);
 
-    // Draw floor
-    g_pDUC->DrawFloor(pd3dImmediateContext);
-
+	// Set the depth stencil state.
+	pd3dImmediateContext->ClearDepthStencilView(pDSV, D3D11_CLEAR_DEPTH, 1.0, 0);
+	
     // Draw axis box
-     g_pDUC->DrawBoundingBox(pd3dImmediateContext);
+     //g_pDUC->DrawBoundingBox(pd3dImmediateContext);
 
 	// Draw Simulator
 	if(g_bDraw)g_pSimulator->drawFrame(pd3dImmediateContext);
+
+	// Draw floor
+	g_pDUC->DrawFloor(pd3dImmediateContext);
 
 	// Draw GUI
     TwDraw();
@@ -333,7 +361,7 @@ int main(int argc, char* argv[])
 #ifdef _DEBUG
 	std::wcout << L"---- DEBUG BUILD ----\n\n";
 #endif
-
+	
 	// Set general DXUT callbacks
 	DXUTSetCallbackMsgProc( MsgProc );
 	DXUTSetCallbackMouse( OnMouse, true );
@@ -351,11 +379,13 @@ int main(int argc, char* argv[])
 	DXUTSetCallbackD3D11DeviceDestroyed( OnD3D11DestroyDevice );
 	// Init Drawing Class
 	g_pDUC = new DrawingUtilitiesClass();
+	g_pDUC->g_windowSize[0] = 1280;
+	g_pDUC->g_windowSize[1] = 960;
     // Init camera
  	XMFLOAT3 eye(0.0f, 0.0f, -2.0f);
 	XMFLOAT3 lookAt(0.0f, 0.0f, 0.0f);
 	g_pDUC->g_camera.SetViewParams(XMLoadFloat3(&eye), XMLoadFloat3(&lookAt));
-	g_pDUC-> g_camera.SetButtonMasks(MOUSE_MIDDLE_BUTTON, MOUSE_WHEEL, MOUSE_RIGHT_BUTTON);
+	g_pDUC-> g_camera.SetButtonMasks(MOUSE_MIDDLE_BUTTON, MOUSE_WHEEL);
 
 
 #ifdef TEMPLATE_DEMO
@@ -377,7 +407,7 @@ int main(int argc, char* argv[])
 	//DXUTSetIsInGammaCorrectMode( false ); // true by default (SRGB backbuffer), disable to force a RGB backbuffer
 	DXUTSetCursorSettings( true, true ); // Show the cursor and clip it when in full screen
 	DXUTCreateWindow( L"Demo" );
-	DXUTCreateDevice( D3D_FEATURE_LEVEL_11_0, true, 1280, 960 );
+	DXUTCreateDevice( D3D_FEATURE_LEVEL_11_0, true, g_pDUC->g_windowSize[0], g_pDUC->g_windowSize[1]);
     
 	DXUTMainLoop(); // Enter into the DXUT render loop
 	DXUTShutdown(); // Shuts down DXUT (includes calls to OnD3D11ReleasingSwapChain() and OnD3D11DestroyDevice())

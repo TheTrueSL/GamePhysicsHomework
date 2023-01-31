@@ -1,13 +1,14 @@
 #ifndef SIMULATOR_h
 #define SIMULATOR_h
+
 #include <sstream>
 #include <iomanip>
 #include <random>
+
 #define _USE_MATH_DEFINES
 #include <cmath>
 #include <iostream>
-#include "util/vectorbase.h"
-#include "util/quaternion.h"
+
 #include "DrawingUtilitiesClass.h"
 
 struct Point2D {
@@ -70,7 +71,8 @@ public:
 	input x,y: the mouse position in pixels
 	*/
 	virtual void onMouse(int x, int y) = 0;
-
+	virtual void onKeyboardPressed(unsigned int key) = 0;
+	virtual void onKeyboardReleased(unsigned int key) = 0;
 };
 
 #endif

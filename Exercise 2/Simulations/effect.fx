@@ -20,7 +20,7 @@ DepthStencilState DepthDefault
 };
 
 //Corresponds to D3D11_BLEND_DESC
-BlendState BlendDisable
+BlendState BlendEnable
 {
 };
 
@@ -84,6 +84,6 @@ technique11 Simple
 		SetPixelShader(CompileShader(ps_5_0, psSimple()));
 		SetRasterizerState(CullNone);
 		SetDepthStencilState(DepthDefault, 0);
-		SetBlendState(BlendDisable, float4( 0.0f, 0.0f, 0.0f, 0.0f ), 0xFFFFFFFF);
+		SetBlendState(BlendEnable, float4( 0.0f, 0.0f, 0.0f, 0.0f ), 0xFFFFFFFF);
 	}
 }

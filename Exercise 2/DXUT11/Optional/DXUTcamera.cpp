@@ -201,7 +201,7 @@ CBaseCamera::CBaseCamera() :
     m_bInvertPitch(false),
     m_bEnablePositionMovement(true),
     m_bEnableYAxisMovement(true),
-    m_bClipToBoundary(false),
+    m_bClipToBoundary(true),
     m_bResetCursorAfterMove(false)
 {
     ZeroMemory( m_aKeys, sizeof( BYTE ) * CAM_MAX_KEYS );

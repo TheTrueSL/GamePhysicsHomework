@@ -12,14 +12,19 @@
 #include "PrimitiveBatch.h"
 #include "GeometricPrimitive.h"
 #include "ScreenGrab.h"
+#include "WICTextureLoader.h"
 // AntTweakBar includes
 #include "AntTweakBar.h"
 // vector mat quat
 #include "util/vectorbase.h"
 #include "util/matrixbase.h"
 #include "util/quaternion.h"
+
+#include <wrl.h>
+
 using namespace DirectX;
 using namespace GamePhysics;
+using namespace Microsoft::WRL;
 
 class DrawingUtilitiesClass{
 
@@ -59,9 +64,15 @@ PrimitiveBatch<VertexPositionNormalColor>* g_pPrimitiveBatchPositionNormalColor;
 std::unique_ptr<GeometricPrimitive> g_pSphere;
 std::unique_ptr<GeometricPrimitive> g_pTeapot;
 
+ComPtr<ID3D11ShaderResourceView> srv_ball;
+
+std::vector<std::pair<XMVECTOR, XMVECTOR>> field_strokes;
+
 // Constructor
 DrawingUtilitiesClass(){
 	g_pTweakBar = nullptr;
+
+    createFloorStrokes();
 }
 
 
@@ -135,6 +146,12 @@ void init(ID3D11Device* pd3dDevice, ID3D11DeviceContext* pd3dImmediateContext)
         // Primitive batch
         g_pPrimitiveBatchPositionNormalColor = new PrimitiveBatch<VertexPositionNormalColor>(pd3dImmediateContext);
     }
+
+    HRESULT hr = CreateWICTextureFromFile(pd3dDevice, pd3dImmediateContext,
+        L"ball2.png", nullptr, srv_ball.GetAddressOf());
+    if (FAILED(hr)) {
+        std::cout << "fail to load texture" << std::endl;
+    }
 }
 
 void destroy(){
@@ -149,9 +166,10 @@ void destroy(){
     SAFE_DELETE (g_pPrimitiveBatchPositionNormalColor);
     SAFE_RELEASE(g_pInputLayoutPositionNormalColor);
     SAFE_DELETE (g_pEffectPositionNormalColor);
-	
+
     g_pSphere.reset();
     g_pTeapot.reset();
+    srv_ball.Reset();
 
 	SAFE_RELEASE(g_pEffect);
 	
@@ -205,6 +223,35 @@ void DrawBoundingBox(ID3D11DeviceContext* pd3dImmediateContext)
     g_pPrimitiveBatchPositionColor->End();
 }
 
+void createFloorStrokes() {
+    const float big_w = 9.8;
+    const float big_h = 2.1 * big_w;
+
+    const float small_w = big_w / 3;
+    const float small_h = big_h - 2 * small_w;
+
+    const float goal_w = small_w / 2;
+    const float goal_h = small_h - 2 * small_w;
+
+    const float y = -0.4995;
+    field_strokes.clear();
+    // big rect
+    field_strokes.push_back(std::make_pair(XMVectorSet(big_h / 2, y, -big_w / 3, 0), XMVectorSet(-big_h / 2, y, -big_w / 3, 0)));
+    field_strokes.push_back(std::make_pair(XMVectorSet(big_h / 2, y, 2*big_w / 3, 0), XMVectorSet(-big_h / 2, y, 2*big_w / 3, 0)));
+    field_strokes.push_back(std::make_pair(XMVectorSet(big_h / 2, y, 2*big_w / 3, 0), XMVectorSet(big_h / 2, y, -big_w / 3, 0)));
+    field_strokes.push_back(std::make_pair(XMVectorSet(-big_h / 2, y, 2*big_w / 3, 0), XMVectorSet(-big_h / 2, y, -big_w / 3, 0)));
+    // small rect
+    field_strokes.push_back(std::make_pair(XMVectorSet(big_h / 2- small_w, y, big_w / 3, 0), XMVectorSet(-big_h / 2 + small_w, y, big_w / 3, 0)));
+    field_strokes.push_back(std::make_pair(XMVectorSet(big_h / 2 - small_w, y, big_w / 3, 0), XMVectorSet(big_h / 2 - small_w, y, 2*big_w / 3, 0)));
+    field_strokes.push_back(std::make_pair(XMVectorSet(-big_h / 2 + small_w, y, big_w / 3, 0), XMVectorSet(-big_h / 2 + small_w, y, 2*big_w / 3, 0)));
+    // goal rect
+    field_strokes.push_back(std::make_pair(XMVectorSet(goal_h / 2, y, 2 * big_w / 3 + goal_w, 0), XMVectorSet(-goal_h / 2, y, 2 * big_w / 3 + goal_w, 0)));
+    field_strokes.push_back(std::make_pair(XMVectorSet(goal_h / 2, y, 2 * big_w / 3 + goal_w, 0), XMVectorSet(goal_h / 2, y, 2 * big_w / 3, 0)));
+    field_strokes.push_back(std::make_pair(XMVectorSet(-goal_h / 2, y, 2 * big_w / 3 + goal_w, 0), XMVectorSet(-goal_h / 2, y, 2 * big_w / 3, 0)));
+    // stand point
+    //field_strokes.push_back(std::make_pair(XMVectorSet(0.2, y, 0.2, 0), XMVectorSet(-0.2, y, -0.2, 0)));
+}
+
 // Draw a large, square plane at y=-1 with a checkerboard pattern
 // (Drawn as multiple quads, i.e. triangle strips, using a DirectXTK primitive batch)
 void DrawFloor(ID3D11DeviceContext* pd3dImmediateContext)
@@ -214,15 +261,15 @@ void DrawFloor(ID3D11DeviceContext* pd3dImmediateContext)
     g_pEffectPositionNormalColor->SetEmissiveColor(Colors::Black);
     g_pEffectPositionNormalColor->SetDiffuseColor(0.8f * Colors::White);
     g_pEffectPositionNormalColor->SetSpecularColor(0.4f * Colors::White);
-    g_pEffectPositionNormalColor->SetSpecularPower(1000);
-    
+    g_pEffectPositionNormalColor->SetSpecularPower(20);
     g_pEffectPositionNormalColor->Apply(pd3dImmediateContext);
     pd3dImmediateContext->IASetInputLayout(g_pInputLayoutPositionNormalColor);
 
     // Draw 4*n*n quads spanning x = [-n;n], y = -1, z = [-n;n]
-    const float n = 4;
+    const float n = 10;
+    const float y = -0.5005;
     XMVECTOR normal      = XMVectorSet(0, 1,0,0);
-    XMVECTOR planecenter = XMVectorSet(0,-1,0,0);
+    XMVECTOR planecenter = XMVectorSet(0,y,0,0);
 
     g_pPrimitiveBatchPositionNormalColor->Begin();
     for (float z = -n; z < n; z++)
@@ -230,13 +277,13 @@ void DrawFloor(ID3D11DeviceContext* pd3dImmediateContext)
         for (float x = -n; x < n; x++)
         {
             // Quad vertex positions
-            XMVECTOR pos[] = { XMVectorSet(x  , -1, z+1, 0),
-                               XMVectorSet(x+1, -1, z+1, 0),
-                               XMVectorSet(x+1, -1, z  , 0),
-                               XMVectorSet(x  , -1, z  , 0) };
+            XMVECTOR pos[] = { XMVectorSet(x  , y, z+1, 0),
+                               XMVectorSet(x+1, y, z+1, 0),
+                               XMVectorSet(x+1, y, z  , 0),
+                               XMVectorSet(x  , y, z  , 0) };
 
             // Color checkerboard pattern (white & gray)
-            XMVECTOR color = ((int(z + x) % 2) == 0) ? XMVectorSet(1,1,1,1) : XMVectorSet(0.6f,0.6f,0.6f,1);
+            XMVECTOR color = ((int(z + x) % 2) == 0) ? XMVectorSet(0.26,0.52,0.0,1) : XMVectorSet(0.24f,0.48f,0.0f,1);
 
             // Color attenuation based on distance to plane center
             float attenuation[] = {
@@ -253,6 +300,23 @@ void DrawFloor(ID3D11DeviceContext* pd3dImmediateContext)
             );
         }
     }
+
+    const float lineWidth = 0.1;
+    XMVECTOR lineColor = XMVectorSet(0.9, 0.95, 0.8, 1);
+    for (int i = 0; i < field_strokes.size(); i++) {
+        XMVECTOR v = XMVector3Normalize((field_strokes[i].first - field_strokes[i].second));
+        XMVECTOR t = XMVectorSet(-XMVectorGetZ(v), 0, XMVectorGetX(v), 0);
+
+        g_pPrimitiveBatchPositionNormalColor->DrawQuad(
+            VertexPositionNormalColor(field_strokes[i].first + (+t + v) * lineWidth, normal, lineColor),
+            VertexPositionNormalColor(field_strokes[i].first + (-t + v) * lineWidth, normal, lineColor),
+            VertexPositionNormalColor(field_strokes[i].second + (-t - v) * lineWidth, normal, lineColor),
+            VertexPositionNormalColor(field_strokes[i].second + (+t - v) * lineWidth, normal, lineColor)
+        );
+
+    }
+    
+
     g_pPrimitiveBatchPositionNormalColor->End();    
 }
 
@@ -295,19 +359,28 @@ void setUpLighting(Vec3 EmissiveColor, Vec3 SpecularColor, float SpecularPower, 
 	g_pEffectPositionNormal->SetSpecularPower(SpecularPower);
     g_pEffectPositionNormal->SetDiffuseColor(c3);  
 }
-void drawSphere(Vec3 pos, Vec3 scale)
-{	
-	drawSphere(pos.toDirectXVector(), scale.toDirectXVector());
+void drawBall(Mat4 m_objToWorld)
+{
+    g_pSphere->Draw(m_objToWorld.toDirectXMatrix(), 
+        g_camera.GetViewMatrix(), g_camera.GetProjMatrix(), Colors::White, srv_ball.Get());
 }
-void drawSphere(const XMVECTOR pos, const XMVECTOR scale)
+void drawSphere(Mat4 m_objToWorld)
+{	
+	drawSphere(m_objToWorld.toDirectXMatrix());
+}
+void drawSphere(const XMMATRIX& m_objToWorld)
 {	
 	// Setup position/normal effect (per object variables)
-	XMMATRIX s    = XMMatrixScaling(XMVectorGetX(scale), XMVectorGetY(scale),XMVectorGetZ(scale));
-    XMMATRIX t    = XMMatrixTranslation(XMVectorGetX(pos), XMVectorGetY(pos), XMVectorGetZ(pos));
-    g_pEffectPositionNormal->SetWorld(s * t * g_camera.GetWorldMatrix());
+	/*XMMATRIX s    = XMMatrixScaling(XMVectorGetX(scale), XMVectorGetY(scale),XMVectorGetZ(scale));
+    XMMATRIX t    = XMMatrixTranslation(XMVectorGetX(pos), XMVectorGetY(pos), XMVectorGetZ(pos));*/
+    //g_pEffectPositionNormal->SetWorld(s * t * g_camera.GetWorldMatrix());
+    //g_pEffectPositionNormal->SetTextureEnabled(true);
+    //g_pEffectPositionNormal->SetTexture(srv.Get());
     // Draw
     // NOTE: The following generates one draw call per object, so performance will be bad for n>>1000 or so
-    g_pSphere->Draw( g_pEffectPositionNormal,  g_pInputLayoutPositionNormal);
+    //g_pSphere->Draw( g_pEffectPositionNormal,  g_pInputLayoutPositionNormal);
+    g_pSphere->Draw(m_objToWorld, g_camera.GetViewMatrix(), g_camera.GetProjMatrix(), Colors::White);
+    //g_pEffectPositionNormal->SetTextureEnabled(false);
 }
 
 void drawTeapot(Vec3 pos,Vec3 rot,Vec3 scale)
