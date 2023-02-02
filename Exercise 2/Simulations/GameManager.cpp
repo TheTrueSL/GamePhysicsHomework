@@ -37,6 +37,11 @@ void GameManager::onStart()
 		// binded objects will be automatically deleted by simulator when reset() is called;
 		simulator->bindCustomObject(ball);
 	}
+	//Goal Setup
+	{
+		
+		
+	}
 }
 
 void GameManager::onFrameUpdate()

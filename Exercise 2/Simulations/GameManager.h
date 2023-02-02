@@ -21,4 +21,5 @@ private:
 	RigidBodySystemSimulator* simulator;
 	GamePhysics::Character* player;
 	GamePhysics::Ball* ball;
+	GamePhysics::GameObject* goal;
 };

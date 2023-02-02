@@ -264,7 +264,7 @@ void RigidBodySystemSimulator::loadTestSetup() {
 	// box 0
 	{
 		Transform* transform = new Transform();
-		transform->position = Vec3(0, 100.25, 0);
+		transform->position = Vec3(0, 100.25, 6.5);
 		transform->rotation = Quat(0.5, 0, 0.25, 1);
 		transform->rotation /= transform->rotation.norm();
 
@@ -275,7 +275,95 @@ void RigidBodySystemSimulator::loadTestSetup() {
 		Collider* collider = new Collider(transform, rigidbody);
 		collider->setBox(Vec3(0.4, 0.5, 0.4));
 		objects.push_back(new GameObject(transform, rigidbody, collider));
+
 	}
+
+	//Create Goal
+	//Top Front Post
+	{	
+		Transform* transform = new Transform();
+		transform->position = Vec3(0, 1.75, 6.5);
+		transform->rotation = Quat(0, 0, 1, 1);
+		transform->rotation /= transform->rotation.norm();
+
+		Rigidbody* rigidbody = new Rigidbody(transform);
+		Collider* collider = new Collider(transform, rigidbody);
+		rigidbody->isFixed = true;
+		collider->setBox(Vec3(0.2, 7.5, 0.2));
+
+		objects.push_back(new GameObject(transform, rigidbody, collider));
+	}
+	//Top Back Post
+	{
+		Transform* transform = new Transform();
+		transform->position = Vec3(0, 1.25, 8);
+		transform->rotation = Quat(0, 0, 1, 1);
+		transform->rotation /= transform->rotation.norm();
+
+		Rigidbody* rigidbody = new Rigidbody(transform);
+		Collider* collider = new Collider(transform, rigidbody);
+		rigidbody->isFixed = true;
+		collider->setBox(Vec3(0.2, 7.5, 0.2));
+
+		objects.push_back(new GameObject(transform, rigidbody, collider));
+	}
+	//Right Front Post
+	{
+		Transform* transform = new Transform();
+		transform->position = Vec3(-3.75, 0.6, 6.5);
+		transform->rotation = Quat(0, 0, 0, 1);
+		transform->rotation /= transform->rotation.norm();
+
+		Rigidbody* rigidbody = new Rigidbody(transform);
+		Collider* collider = new Collider(transform, rigidbody);
+		rigidbody->isFixed = true;
+		collider->setBox(Vec3(0.2, 2.25, 0.2));
+
+		objects.push_back(new GameObject(transform, rigidbody, collider));
+	}
+	//Right Back Post
+	{
+		Transform* transform = new Transform();
+		transform->position = Vec3(-3.75, 0.4, 8);
+		transform->rotation = Quat(0, 0, 0, 1);
+		transform->rotation /= transform->rotation.norm();
+
+		Rigidbody* rigidbody = new Rigidbody(transform);
+		Collider* collider = new Collider(transform, rigidbody);
+		rigidbody->isFixed = true;
+		collider->setBox(Vec3(0.2, 1.75, 0.2));
+
+		objects.push_back(new GameObject(transform, rigidbody, collider));
+	}
+	//Left Front Post
+	{
+		Transform* transform = new Transform();
+		transform->position = Vec3(3.75, 0.6, 6.5);
+		transform->rotation = Quat(0, 0, 0, 1);
+		transform->rotation /= transform->rotation.norm();
+
+		Rigidbody* rigidbody = new Rigidbody(transform);
+		Collider* collider = new Collider(transform, rigidbody);
+		rigidbody->isFixed = true;
+		collider->setBox(Vec3(0.2, 2.25, 0.2));
+
+		objects.push_back(new GameObject(transform, rigidbody, collider));
+	}
+	//Left Back Post
+	{
+		Transform* transform = new Transform();
+		transform->position = Vec3(3.75, 0.4, 8);
+		transform->rotation = Quat(0, 0, 0, 1);
+		transform->rotation /= transform->rotation.norm();
+
+		Rigidbody* rigidbody = new Rigidbody(transform);
+		Collider* collider = new Collider(transform, rigidbody);
+		rigidbody->isFixed = true;
+		collider->setBox(Vec3(0.2, 1.75, 0.2));
+
+		objects.push_back(new GameObject(transform, rigidbody, collider));
+	}
+
 
 	updateTransformations();
 }
