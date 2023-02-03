@@ -231,6 +231,7 @@
     <ClCompile Include="GameObject.cpp" />
     <ClCompile Include="Rigidbody.cpp" />
     <ClCompile Include="RigidBodySystemSimulator.cpp" />
+    <ClCompile Include="Goal.cpp" />
     <ClCompile Include="Spring.cpp" />
     <ClCompile Include="TemplateSimulator.cpp" />
     <ClCompile Include="Transform.cpp" />
@@ -244,6 +245,7 @@
     <ClInclude Include="DrawingUtilitiesClass.h" />
     <ClInclude Include="GameManager.h" />
     <ClInclude Include="GameObject.h" />
+    <ClInclude Include="Goal.h" />
     <ClInclude Include="Mat3.h" />
     <ClInclude Include="Rigidbody.h" />
     <ClInclude Include="RigidBodySystemSimulator.h" />

@@ -4,6 +4,7 @@
 #include "Spring.h"
 #include "Character.h"
 #include "Ball.h"
+#include "Goal.h"
 
 class RigidBodySystemSimulator;
 
@@ -21,5 +22,5 @@ private:
 	RigidBodySystemSimulator* simulator;
 	GamePhysics::Character* player;
 	GamePhysics::Ball* ball;
-	GamePhysics::GameObject* goal;
+	GamePhysics::Goal* goal;
 };

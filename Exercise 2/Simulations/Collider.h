@@ -46,6 +46,7 @@ namespace GamePhysics {
 
 		bool drawAxis = false;
 		bool isTrigger = false;
+		bool ballFlag = false;
 
 		ColliderType type;
 		Vec3 size;
