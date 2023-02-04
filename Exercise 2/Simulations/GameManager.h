@@ -17,10 +17,14 @@ public:
 	void onStart();
 
 	void onFrameUpdate();
+	
 
 private:
 	RigidBodySystemSimulator* simulator;
 	GamePhysics::Character* player;
 	GamePhysics::Ball* ball;
 	GamePhysics::Goal* goal;
+	
+	std::vector<GamePhysics::GameObject*> masspoints;
+	std::vector<GamePhysics::Spring*> net;
 };

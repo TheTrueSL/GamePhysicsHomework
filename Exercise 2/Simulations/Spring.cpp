@@ -8,7 +8,9 @@ using namespace GamePhysics;
 std::map<int, Spring*> Spring::dict = std::map<int, Spring*>();
 int Spring::id_count = 0;
 
-GamePhysics::Spring::Spring(Rigidbody* b0, Rigidbody* b1, float stiffness, float damping, float restLength)
+Spring::Spring(Rigidbody* b0, Rigidbody* b1,
+	float stiffness, float damping, float restLength,
+	const Vec3& offset0, const Vec3& offset1)
 {
 	// append global dictionary
 	this->id = Spring::id_count++;
@@ -16,6 +18,10 @@ GamePhysics::Spring::Spring(Rigidbody* b0, Rigidbody* b1, float stiffness, float
 	//
 	this->b0 = b0;
 	this->b1 = b1;
+	
+	this->offset0 = offset0;
+	this->offset1 = offset1;
+
 	this->stiffness = stiffness;
 	this->damping = damping;
 	this->restLength = restLength;
@@ -29,14 +35,17 @@ GamePhysics::Spring::~Spring()
 void GamePhysics::Spring::applyForce()
 {
 	// hook's law
-	Vec3 v0 = b0->transform->position -
-		b1->transform->position;
+	Vec3 p0 = b0->transform->transformation.transformVector(offset0);
+	Vec3 p1 = b1->transform->transformation.transformVector(offset1);
+
+	Vec3 v0 = p0 - p1;
 	float length = normalize(v0);
 	// forces
 	Vec3 f0 = -(stiffness) * (length - restLength) * v0
 		- damping * dot(b0->velocity - b1->velocity, v0) * v0;
-	b0->force += f0;
-	b1->force += -f0;
+
+	b0->addForce(f0, p0);
+	b1->addForce(-f0, p1);
 }
 
 void GamePhysics::Spring::drawAll(DrawingUtilitiesClass* duc)
