@@ -208,208 +208,44 @@ void GameManager::onStart()
 		Rigidbody* oldPoint = NULL;
 		float stiffness = 1.0f;
 		float dampening = 1.0f;
-		float  length = 0.01f;
-		Vec3 offset1 = Vec3(0., 0.2, 0);
-		Vec3 offset2 = Vec3(0, -0.2, 0);
+		float  length = 0.2f;
+		float mass = 0.2f;
 
-		Rigidbody* lastLine1 = NULL;
-		Rigidbody* lastLine2 = NULL;
-		Rigidbody* lastLine3 = NULL;
-		Rigidbody* lastLine4 = NULL;
-		{
-			Transform* t = new Transform();
-			t->position = Vec3(-3.75, 1.3, 8);
-			Rigidbody* rb = new Rigidbody(t);
-			rb->isFixed = true;
-			Collider* col = new Collider(t, rb);
-			col->layer = 0b1000;
-			col->filter = 0b0110; 
-			col->setSphere(0.1);
-			GameObject* newPoint = new GameObject(t, rb, col);
-			simulator->bindGameObject(newPoint);
-			lastLine1 = rb;
-		}
-		{
-			Transform* t = new Transform();
-			t->position = Vec3(-3.75, 0.8, 8);
-			Rigidbody* rb = new Rigidbody(t);
-			rb->isFixed = true;
-			Collider* col = new Collider(t, rb);
-			col->layer = 0b1000;
-			col->filter = 0b0110; 
-			col->setSphere(0.1);
-			GameObject* newPoint = new GameObject(t, rb, col);
-			simulator->bindGameObject(newPoint);
-			lastLine2 = rb;
-		}
-		{
-			Transform* t = new Transform();
-			t->position = Vec3(-3.75, 0.3, 8);
-			Rigidbody* rb = new Rigidbody(t);
-			rb->isFixed = true;
-			Collider* col = new Collider(t, rb);
-			col->layer = 0b1000;
-			col->filter = 0b0110; 
-			col->setSphere(0.1);
-			GameObject* newPoint = new GameObject(t, rb, col);
-			simulator->bindGameObject(newPoint);
-			lastLine3 = rb;
-		}
-		{
-			Transform* t = new Transform();
-			t->position = Vec3(-3.75, -0.2, 8);
-			Rigidbody* rb = new Rigidbody(t);
-			rb->isFixed = true;
-			Collider* col = new Collider(t, rb);
-			col->layer = 0b1000;
-			col->filter = 0b0110; 
-			col->setSphere(0.1);
-			GameObject* newPoint = new GameObject(t, rb, col);
-			simulator->bindGameObject(newPoint);
-			lastLine4 = rb;
-		}
-
-		for (int i = 0; i < 15; i++) {
-			Transform* t = new Transform();
-			t->position = Vec3(-3.5 + (0.5 * i), 1.75, 8);
-			Rigidbody* rb = new Rigidbody(t);
-			rb->isFixed = true;
-			Collider* col = new Collider(t, rb);
-			col->layer = 0b1000;
-			col->filter = 0b0110;
-			col->setSphere(0.1);
-			GameObject* newPoint = new GameObject(t, rb, col);
-			simulator->bindGameObject(newPoint);
-			if (oldPoint != NULL) {
-				simulator->bindSpring(
-					new Spring(oldPoint, rb, stiffness, dampening, length, offset1, offset2));
-			}
-			oldPoint = rb;
-
-			for (int j = 0; j < 4; j++) {
+		for (int i = 0; i < 13; i++) {
+			for (int j = 0; j < 38; j++) {
 				Transform* t = new Transform();
-				t->position = Vec3(-3.5 + (0.5 * i), 1.3 - (0.5 * j), 8);
+				t->position = Vec3(-3.75 + (0.2 * j), 1.75 - (0.2 * i), 8);
 				Rigidbody* rb = new Rigidbody(t);
 				//Change here to false to activate physics
-				rb->isFixed = false;
+				if (i == 0 || i == 12 || j == 0 || j == 37) {
+					rb->isFixed = true;
+				}
+				else {
+					rb->isFixed = false;
+				}
 				rb->useGravity = false;
-				rb->mass = 0.2f;
+				rb->mass = mass;
 				Collider* col = new Collider(t, rb);
 				col->layer = 0b1000;
 				col->filter = 0b0110;
-				col->setBox(Vec3(0.4, 0.4, 0.01));
+				col->setSphere(0.01);
 				GameObject* newPoint = new GameObject(t, rb, col);
+				netGrid.push_back(rb);
 				simulator->bindGameObject(newPoint);
-				if (oldPoint != NULL) {
-					simulator->bindSpring(
-						new Spring(oldPoint, rb, stiffness, dampening, length, offset1, offset2));
+				if (!j == 0) {
+					simulator->bindSpring(new Spring(oldPoint, rb, stiffness, dampening, length, Vec3(0, 0, 0), Vec3(0, 0, 0)));
 				}
 				oldPoint = rb;
-				switch (j)
-				{
-				case 0:
-					if (lastLine1 != NULL) {
-						simulator->bindSpring(
-							new Spring(lastLine1, rb, stiffness, dampening, length, offset1, offset2));
-					}
-					lastLine1 = rb;
-					break;
-				case 1:
-					if (lastLine2 != NULL) {
-						simulator->bindSpring(
-							new Spring(lastLine2, rb, stiffness, dampening, length, offset1, offset2));
-					}
-					lastLine2 = rb;
-					break;
-				case 2:
-					if (lastLine3 != NULL) {
-						simulator->bindSpring(
-							new Spring(lastLine3, rb, stiffness, dampening, length, offset1, offset2));
-					}
-					lastLine3 = rb;
-					break;
-				case 3:
-					if (lastLine4 != NULL) {
-						simulator->bindSpring(
-							new Spring(lastLine4, rb, stiffness, dampening, length, offset1, offset2));
-					}
-					lastLine4 = rb;
-					break;
-				default:
-					break;
-				}
 			}
-			Transform* t2 = new Transform();
-			t2->position = Vec3(-3.5 + (0.5 * i), -0.5, 8);
-			Rigidbody* rb2 = new Rigidbody(t2);
-			rb2->isFixed = true;
-			Collider* col2 = new Collider(t2, rb2);
-			col2->layer = 0b1000;
-			col2->filter = 0b0110;
-			col2->setSphere(0.01);
-			GameObject* newPoint2 = new GameObject(t2, rb2, col2);
-			simulator->bindGameObject(newPoint2);
-			if (oldPoint != NULL) {
-				simulator->bindSpring(
-					new Spring(oldPoint, rb2, stiffness, dampening, length, offset1, offset2));
-			}
-			oldPoint = NULL;
 		}
+
+		for (int z=38; z<netGrid.size()-1; z++)
 		{
-			Transform* t = new Transform();
-			t->position = Vec3(3.75, 1.3, 8);
-			Rigidbody* rb = new Rigidbody(t);
-			rb->isFixed = true;
-			Collider* col = new Collider(t, rb);
-			col->layer = 0b1000;
-			col->filter = 0b0110;
-			col->setSphere(0.1);
-			GameObject* newPoint = new GameObject(t, rb, col);
-			simulator->bindGameObject(newPoint);
-			simulator->bindSpring(
-				new Spring(lastLine1, rb, stiffness, dampening, length, offset1, offset2));
-		}
-		{
-			Transform* t = new Transform();
-			t->position = Vec3(3.75, 0.8, 8);
-			Rigidbody* rb = new Rigidbody(t);
-			rb->isFixed = true;
-			Collider* col = new Collider(t, rb);
-			col->layer = 0b1000;
-			col->filter = 0b0110;
-			col->setSphere(0.1);
-			GameObject* newPoint = new GameObject(t, rb, col);
-			simulator->bindGameObject(newPoint);
-			simulator->bindSpring(
-				new Spring(lastLine2, rb, stiffness, dampening, length, offset1, offset2));
-		}
-		{
-			Transform* t = new Transform();
-			t->position = Vec3(3.75, 0.3, 8);
-			Rigidbody* rb = new Rigidbody(t);
-			rb->isFixed = true;
-			Collider* col = new Collider(t, rb);
-			col->layer = 0b1000;
-			col->filter = 0b0110;
-			col->setSphere(0.1);
-			GameObject* newPoint = new GameObject(t, rb, col);
-			simulator->bindGameObject(newPoint);
-			simulator->bindSpring(
-				new Spring(lastLine3, rb, stiffness, dampening, length, offset1, offset2));
-		}
-		{
-			Transform* t = new Transform();
-			t->position = Vec3(3.75, -0.2, 8);
-			Rigidbody* rb = new Rigidbody(t);
-			rb->isFixed = true;
-			Collider* col = new Collider(t, rb);
-			col->layer = 0b1000;
-			col->filter = 0b0110;
-			col->setSphere(0.1);
-			GameObject* newPoint = new GameObject(t, rb, col);
-			simulator->bindGameObject(newPoint);
-			simulator->bindSpring(
-				new Spring(lastLine4, rb, stiffness, dampening, length, offset1, offset2));
+			Rigidbody* rb1 = netGrid[z];
+			Rigidbody* rb2 = netGrid[z-38];
+
+
+			simulator->bindSpring(new Spring(rb1, rb2, stiffness, dampening, length, Vec3(0, 0, 0), Vec3(0, 0, 0)));
 		}
 
 	}
