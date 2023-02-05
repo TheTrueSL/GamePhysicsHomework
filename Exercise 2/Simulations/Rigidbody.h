@@ -33,8 +33,6 @@ namespace GamePhysics {
 		Vec3 angularVelocity;
 		Vec3 angularMomentum;
 
-		Vec3 virtualVelocity;
-
 		Vec3 force;
 		Vec3 torque;
 
@@ -49,6 +47,7 @@ namespace GamePhysics {
 		float friction;
 		bool isFixed;
 		bool fixRotation;
+		bool useGravity;
 
 		Vec3 CoM;
 

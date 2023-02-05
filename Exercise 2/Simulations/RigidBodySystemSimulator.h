@@ -42,6 +42,7 @@ public:
 
 	void bindCustomObject(CustomObject*);
 	void bindGameObject(GameObject*);
+	void bindSpring(Spring*);
 
 private:
 	// mouse state for click detection
@@ -63,7 +64,10 @@ private:
 private:
 	// Simulation
 	std::vector<GameObject*> objects;
+	std::vector<GameObject*> fixedObjects;
 	std::vector<CustomObject*> customObjects;
+	std::vector<CustomObject*> customFixedObjects;
+	std::vector<Spring*> springs;
 	GameManager* gameManager;
 	std::map<int, CustomObject*> colliderMap;
 	Character player;

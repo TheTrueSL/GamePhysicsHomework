@@ -11,6 +11,9 @@ GamePhysics::GameObject::GameObject(Transform* transform, Rigidbody* body, Colli
 
 GamePhysics::GameObject::~GameObject()
 {
+	transform.reset();
+	rigidbody.reset();
+	collider.reset();
 }
 
 void GamePhysics::GameObject::regist(Transform* transform, Rigidbody* body, Collider* collider)

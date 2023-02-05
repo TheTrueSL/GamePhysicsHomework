@@ -53,10 +53,10 @@ void GamePhysics::Spring::drawAll(DrawingUtilitiesClass* duc)
 	duc->beginLine();
 	for (auto sit = Spring::dict.begin(); sit != Spring::dict.end(); ++sit) {
 		Spring* s = sit->second;
-		Transform* t0 = s->b0->transform;
-		Transform* t1 = s->b1->transform;
+		Vec3 p0 = s->b0->transform->transformation.transformVector(s->offset0);
+		Vec3 p1 = s->b1->transform->transformation.transformVector(s->offset1);
 		{
-			duc->drawLine(t0->position, Vec3(1,1,1), t1->position, Vec3(1, 1, 1));
+			duc->drawLine(p0, Vec3(1,1,1), p1, Vec3(1, 1, 1));
 		}
 	}
 	duc->endLine();

@@ -15,6 +15,7 @@ Rigidbody::Rigidbody(Transform* transform)
 	inverseMass = 1;
 	isFixed = false;
 	fixRotation = false;
+	useGravity = true;
 	this->friction = 1.0f;
 
 	this->transform = transform;
@@ -86,8 +87,6 @@ void GamePhysics::Rigidbody::init()
 	this->velocity = Vec3();
 	this->angularMomentum = Vec3();
 	this->angularVelocity = Vec3();
-	this->virtualVelocity = Vec3();
-
 	this->force = Vec3();
 	this->torque = Vec3();
 }

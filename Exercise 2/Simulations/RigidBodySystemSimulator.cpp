@@ -68,10 +68,19 @@ void RigidBodySystemSimulator::drawFrame(ID3D11DeviceContext* pd3dImmediateConte
 		objects[i]->draw(DUC);
 		objects[i]->collider->drawShadow(DUC, y_plane, dir);
 	}
+	for (int i = 0; i < fixedObjects.size(); i++) {
+		fixedObjects[i]->draw(DUC);
+		fixedObjects[i]->collider->drawShadow(DUC, y_plane, dir);
+	}
 	for (int i = 0; i < customObjects.size(); i++) {
 		customObjects[i]->onDraw(DUC);
 		customObjects[i]->collider->drawShadow(DUC, y_plane, dir);
 		customObjects[i]->onFrameUpdate();
+	}
+	for (int i = 0; i < customFixedObjects.size(); i++) {
+		customFixedObjects[i]->onDraw(DUC);
+		customFixedObjects[i]->collider->drawShadow(DUC, y_plane, dir);
+		customFixedObjects[i]->onFrameUpdate();
 	}
 
 	gameManager->onFrameUpdate();
@@ -260,7 +269,7 @@ void RigidBodySystemSimulator::loadTestSetup() {
 	gameManager->onStart();
 
 	// box 0
-	{
+	/*{
 		Transform* transform = new Transform();
 		transform->position = Vec3(0, 100.25, 6.5);
 		transform->rotation = Quat(0.5, 0, 0.25, 1);
@@ -274,7 +283,7 @@ void RigidBodySystemSimulator::loadTestSetup() {
 		collider->setBox(Vec3(0.4, 0.5, 0.4));
 		objects.push_back(new GameObject(transform, rigidbody, collider));
 
-	}
+	}*/
 
 
 	//Generate net
@@ -287,13 +296,37 @@ void RigidBodySystemSimulator::loadTestSetup() {
 
 void RigidBodySystemSimulator::bindCustomObject(CustomObject* cobj)
 {
+	if (cobj == nullptr)
+		return;
+	if (cobj->rigidbody == nullptr)
+		return;
+
 	colliderMap.insert(std::make_pair(cobj->collider->id, cobj));
-	customObjects.push_back(cobj);
+	if (cobj->rigidbody->isFixed) {
+		customFixedObjects.push_back(cobj);
+	}
+	else {
+		customObjects.push_back(cobj);
+	}
 }
 
 void RigidBodySystemSimulator::bindGameObject(GameObject* gobj)
 {
-	objects.push_back(gobj);
+	if (gobj == nullptr)
+		return;
+	if (gobj->rigidbody == nullptr)
+		return;
+	if (gobj->rigidbody->isFixed) {
+		fixedObjects.push_back(gobj);
+	}
+	else {
+		objects.push_back(gobj);
+	}
+}
+
+void RigidBodySystemSimulator::bindSpring(Spring* s)
+{
+	springs.push_back(s);
 }
 
 void RigidBodySystemSimulator::collisionResolve(
@@ -322,7 +355,7 @@ void RigidBodySystemSimulator::collisionPLane(
 	{
 		Collider* collider = cit->second;
 
-		if ((collider->filter & 1) == 0)
+		if ((collider->filter & 1) == 0 && collider->rigidbody->isFixed)
 			continue;
 
 		ContactInfo hit = collider->collisionTest(&plane);
@@ -527,8 +560,14 @@ void RigidBodySystemSimulator::updateTransformations()
 	for (int i = 0; i < objects.size(); i++) {
 		objects[i]->update();
 	}
+	for (int i = 0; i < fixedObjects.size(); i++) {
+		fixedObjects[i]->update();
+	}
 	for (int i = 0; i < customObjects.size(); i++) {
 		customObjects[i]->update();
+	}
+	for (int i = 0; i < customFixedObjects.size(); i++) {
+		customFixedObjects[i]->update();
 	}
 	player.updateTransformations();
 }
@@ -626,6 +665,18 @@ void RigidBodySystemSimulator::deleteObjects()
 		delete o;
 	}
 	customObjects.clear();
+	for (auto& o : fixedObjects) {
+		delete o;
+	}
+	fixedObjects.clear();
+	for (auto& o : customFixedObjects) {
+		delete o;
+	}
+	customFixedObjects.clear();
+	for (auto& o : springs) {
+		delete o;
+	}
+	springs.clear();
 }
 
 void RigidBodySystemSimulator::onStepStart(const float dt)
@@ -679,7 +730,7 @@ void RigidBodySystemSimulator::applyGravity(const Vec3& g)
 	for (auto rit = Rigidbody::dict.begin(); rit != Rigidbody::dict.end(); ++rit)
 	{
 		Rigidbody* rigidbody = rit->second;
-		if (!rigidbody->isFixed) {
+		if (!rigidbody->isFixed && rigidbody->useGravity) {
 			rigidbody->force += rigidbody->mass * g;
 		}
 	}
