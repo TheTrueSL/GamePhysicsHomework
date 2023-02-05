@@ -25,5 +25,5 @@ private:
 	GamePhysics::Ball* ball;
 	GamePhysics::Goal* goal;
 	
-	std::vector<GamePhysics::Spring*> net;
+	std::vector<GamePhysics::Rigidbody*> netGrid;
 };
