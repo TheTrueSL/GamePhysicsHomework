@@ -24,7 +24,7 @@ void GamePhysics::Ball::onPhysicsUpdate(float dt)
 {
 	if (transform->position.y > -0.5 + collider->size.x) {
 		// on air
-		rigidbody->force += cross(rigidbody->velocity, rigidbody->angularVelocity) * dt * 0.8;
+		rigidbody->force += cross(rigidbody->velocity, rigidbody->angularVelocity) * dt * 0.6;
 	}
 	else {
 		rigidbody->force += cross(rigidbody->velocity, rigidbody->angularVelocity) * dt * 0.4;

@@ -125,21 +125,22 @@ void GamePhysics::Character::onMouseMove(int x, int y, Vec3 ro, Vec3 rd)
 	Vec3 p;
 	Vec3 newPos;
 	float z = dragZoffset;
-	if (planeIntersection(Vec3(0,0,0), Vec3(0, 0.1, 1), ro, rd, p)) {
-		z = z + 0.25 * p.y;
-		newPos = Vec3(p.x, p.y, z);
+	if (planeIntersection(Vec3(0,-1, 0), Vec3(0, 0.25, -1), ro, rd, p)) {
+		z = z + p.z;
+		newPos = Vec3(p.x, p.y, 2 * z);
 	}
 	else {
 		newPos = Vec3(0, 0, z);
 	}
-	float lin_coef = 2;
-	float rot_coef = 0.6;
+	float lin_coef = 3.0;
+	float rot_coef = 2.5;
 	ball->transform->position = newPos;
+	ball->transform->position.z = dragZoffset;
 
 	ball->rigidbody->velocity *= std::max(0.0f, 1 - time_passed);
 	ball->rigidbody->angularMomentum *= std::max(0.0f, 1 - time_passed);
 	Vec3 dPos = (newPos - lastPos);
-	ball->rigidbody->velocity += Vec3(dPos.x, dPos.y, dPos.z + norm(dPos)) * lin_coef;
+	ball->rigidbody->velocity += Vec3(dPos.x, dPos.y, dPos.z) * lin_coef;
 	ball->rigidbody->angularMomentum += cross(lastdPos, dPos) * rot_coef;
 	lastPos = newPos;
 	lastdPos = dPos;
@@ -182,6 +183,7 @@ void GamePhysics::Character::buildModel()
 		transform->rotation /= transform->rotation.norm();
 
 		rigidbody->mass = 4;
+		rigidbody->friction = 0;
 		rigidbody->isFixed = false;
 		rigidbody->useGravity = false;
 
