@@ -53,7 +53,7 @@ private:
 	void onMouseDouble(int x, int y);
 
 	Collider* dragCollider;
-	void selectDragPoint(int x, int y, Collider*& outCollider);
+	void screen2Ray(int x, int y, Vec3& outO, Vec3& outD);
 
 	Vec3 _gravity;
 	float _linearDamping;

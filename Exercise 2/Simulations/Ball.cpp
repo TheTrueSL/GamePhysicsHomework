@@ -4,6 +4,9 @@
 
 void GamePhysics::Ball::onCollisionEnter(Collider* other)
 {
+	if (other != nullptr) {
+		rigidbody->angularMomentum *= 0.99;
+	}
 }
 
 void GamePhysics::Ball::onDraw(DrawingUtilitiesClass* duc)
@@ -19,4 +22,11 @@ void GamePhysics::Ball::onFrameUpdate()
 
 void GamePhysics::Ball::onPhysicsUpdate(float dt)
 {
+	if (transform->position.y > -0.5 + collider->size.x) {
+		// on air
+		rigidbody->force += cross(rigidbody->velocity, rigidbody->angularVelocity) * dt * 0.8;
+	}
+	else {
+		rigidbody->force += cross(rigidbody->velocity, rigidbody->angularVelocity) * dt * 0.4;
+	}
 }

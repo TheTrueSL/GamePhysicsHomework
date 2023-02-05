@@ -150,13 +150,11 @@ void RigidBodySystemSimulator::simulateTimestep(float timeStep)
 
 void RigidBodySystemSimulator::onKeyboardPressed(unsigned int key)
 {
-	std::cout << key << std::endl;
 	player.onKeyPressed(key);
 }
 
 void RigidBodySystemSimulator::onKeyboardReleased(unsigned int key)
 {
-	std::cout << key << std::endl;
 	player.onKeyReleased(key);
 }
 
@@ -175,6 +173,11 @@ void RigidBodySystemSimulator::onClick(int x, int y)
 			onMouseDown(x, y);
 		}
 	}
+	else {
+		Vec3 ro, rd;
+		screen2Ray(x, y, ro, rd);
+		player.onMouseMove(x, y, ro, rd);
+	}
 
 	_isPressed = true;
 
@@ -184,6 +187,9 @@ void RigidBodySystemSimulator::onClick(int x, int y)
 
 void RigidBodySystemSimulator::onMouse(int x, int y)
 {
+	if (_isPressed) {
+		player.onMouseReleased(x, y);
+	}
 	_isPressed = false;
 
 	m_oldtrackmouse.x = x;
@@ -194,15 +200,17 @@ void RigidBodySystemSimulator::onMouse(int x, int y)
 
 void RigidBodySystemSimulator::onMouseDown(int x, int y)
 {
-	selectDragPoint(x, y, dragCollider);
+	Vec3 ro, rd;
+	screen2Ray(x, y, ro, rd);
+	player.onMousePressed(x, y, ro, rd);
 }
 
 void RigidBodySystemSimulator::onMouseDouble(int x, int y)
 {
-	selectDragPoint(x, y, dragCollider);
+	//selectDragPoint(x, y, dragCollider);
 }
 
-void RigidBodySystemSimulator::selectDragPoint(int x, int y, Collider*& outCollider)
+void RigidBodySystemSimulator::screen2Ray(int x, int y, Vec3& outO, Vec3& outD)
 {
 	// find closest point mass
 	float mx = (float)x / DUC->g_windowSize[0] * 2 - 1;
@@ -233,27 +241,8 @@ void RigidBodySystemSimulator::selectDragPoint(int x, int y, Collider*& outColli
 	GamePhysics::normalize(rayDir);
 	rayDir = ViewInv.transformVectorNormal(rayDir);
 
-	const float dragTolerance = 2e-3;
-	const float overlapTolerance = 1e-3;
-	float nearestZ = 1;
-	float mindd = 1;
-
-	outCollider = nullptr;
-
-	for (int i = 0; i < objects.size(); i++) {
-		Vec3& position = objects[i]->transform->position;
-		XMVECTOR clip_pos = XMVector4Transform(
-			position.toDirectXVector(), viewProj);
-		XMVECTOR w_vector = XMVectorSplatW(clip_pos);
-		XMVECTOR ndc = XMVectorDivide(clip_pos, w_vector);
-
-		float px = DirectX::XMVectorGetX(ndc);
-		float py = DirectX::XMVectorGetY(ndc);
-		float pz = DirectX::XMVectorGetZ(ndc); // depth
-
-		//float mx = (float)x / DUC->g_windowSize[0] * 2 - 1;
-		//float my = 1 - (float)y / DUC->g_windowSize[1] * 2;
-	}
+	outO = rayOrigin;
+	outD = rayDir;
 }
 
 void RigidBodySystemSimulator::loadTestSetup() {
@@ -355,7 +344,7 @@ void RigidBodySystemSimulator::collisionPLane(
 	{
 		Collider* collider = cit->second;
 
-		if ((collider->filter & 1) == 0 && collider->rigidbody->isFixed)
+		if ((collider->filter & 1) == 0 || collider->rigidbody->isFixed)
 			continue;
 
 		ContactInfo hit = collider->collisionTest(&plane);

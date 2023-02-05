@@ -26,8 +26,9 @@ void GameManager::onStart()
 
 		Rigidbody* rigidbody = new Rigidbody(transform);
 		rigidbody->friction = 0.5;
+		rigidbody->velocity = Vec3(0.1, 0.1, 4);
 		rigidbody->angularVelocity = Vec3(1, 0, 0);
-		rigidbody->angularMomentum = Vec3(1,0, 0);
+		rigidbody->angularMomentum = Vec3(0.1, 0.1, 0.0);
 		rigidbody->setSphereInertia(0.25, 0.1);
 
 		Collider* collider = new Collider(transform, rigidbody);
@@ -38,9 +39,9 @@ void GameManager::onStart()
 
 		ball = new Ball();
 		ball->regist(transform, rigidbody, collider);
-
 		// binded objects will be automatically deleted by simulator when reset() is called;
 		simulator->bindCustomObject(ball);
+		player->attachBall(ball);
 	}
 	//Goal Detection Box Setup
 	{
