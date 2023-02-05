@@ -209,8 +209,8 @@ void GameManager::onStart()
 		Rigidbody* oldPoint = NULL;
 		float stiffness = 1.0f;
 		float dampening = 1.0f;
-		float  length = 0.2f;
-		float mass = 0.2f;
+		float  length = 0.21f;
+		float mass = 0.02f;
 
 		for (int i = 0; i < 13; i++) {
 			for (int j = 0; j < 38; j++) {
@@ -229,7 +229,7 @@ void GameManager::onStart()
 				Collider* col = new Collider(t, rb);
 				col->layer = 0b1000;
 				col->filter = 0b0110;
-				col->setSphere(0.01);
+				col->setSphere(0.001);
 				GameObject* newPoint = new GameObject(t, rb, col);
 				netGrid.push_back(rb);
 				simulator->bindGameObject(newPoint);
