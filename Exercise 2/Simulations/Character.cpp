@@ -63,6 +63,7 @@ void GamePhysics::Character::draw(DrawingUtilitiesClass* duc)
 
 void GamePhysics::Character::init(Vec3 positon)
 {
+	chance = true;
 	for (int i = 0; i < 4; i++)
 	{
 		pressed[i] = false;
@@ -118,6 +119,9 @@ void GamePhysics::Character::onKeyReleased(unsigned int key)
 
 void GamePhysics::Character::onMouseMove(int x, int y, Vec3 ro, Vec3 rd)
 {
+	if (!chance)
+		return;
+
 	float time_passed = -ticker;
 	ticker = clock();
 	time_passed = time_passed + ticker;
@@ -150,20 +154,16 @@ void GamePhysics::Character::onMouseMove(int x, int y, Vec3 ro, Vec3 rd)
 void GamePhysics::Character::onMousePressed(int x, int y, Vec3 ro, Vec3 rd)
 {
 	ticker = clock();
-	Vec3 p;
-	float z = dragZoffset;
-	if (planeIntersection(Vec3(), Vec3(0, 1, -1), ro, rd, p)) {
-		z = z + p.y * 0.25;
-		lastPos = Vec3(p.x, p.y, z);
-	}
-	else {
-		lastPos = Vec3(0, 0, z);
-	}
+	lastPos = Vec3();
+	lastdPos = Vec3();
+	ball->rigidbody->useGravity = false;
+	onMouseMove(x, y, ro, rd);
 }
 
 void GamePhysics::Character::onMouseReleased(int x, int y)
 {
-	
+	chance = false;
+	ball->rigidbody->useGravity = true;
 }
 
 void GamePhysics::Character::attachBall(Ball* b) 

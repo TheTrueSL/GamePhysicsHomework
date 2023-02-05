@@ -25,10 +25,10 @@ namespace GamePhysics
 		void onMousePressed(int, int, Vec3, Vec3);
 		void onMouseReleased(int, int);
 		void attachBall(Ball*);
-	private:
+		
 		Ball* ball;
 		void buildModel();
-		float getZPos(int, int, const Vec3&, const Vec3&);
+		
 		bool planeIntersection(const Vec3& o, const Vec3& n, const Vec3& ro, const Vec3& rd, Vec3& p);
 		time_t ticker;
 		GameObject kicker;
@@ -39,6 +39,7 @@ namespace GamePhysics
 		float dragZoffset;
 		Vec3 lastPos;
 		Vec3 lastdPos;
+		bool chance;
 	};
 
 }

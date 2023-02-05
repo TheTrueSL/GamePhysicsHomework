@@ -4,6 +4,51 @@
 
 using namespace GamePhysics;
 
+void HSVtoRGB(float H, float S, float V, float& R, float& G, float& B) {
+	//H(Hue): 0-360 degrees
+	//S(Saturation) : 0 - 100 percent
+	//V(Value) : 0 - 100 percent
+
+	R = 0;
+	G = 0;
+	B = 0;
+
+	if (H > 360 || H < 0 || S>100 || S < 0 || V>100 || V < 0) {
+		cout << "The givem HSV values are not in valid range" << endl;
+		return;
+	}
+
+	float s = S * 0.01;
+	float v = V * 0.01;
+	float C = s * v;
+	float X = C * (1 - abs(fmod(H / 60.0, 2) - 1));
+	float m = v - C;
+	float r, g, b;
+	if (H >= 0 && H < 60) {
+		r = C, g = X, b = 0;
+	}
+	else if (H >= 60 && H < 120) {
+		r = X, g = C, b = 0;
+	}
+	else if (H >= 120 && H < 180) {
+		r = 0, g = C, b = X;
+	}
+	else if (H >= 180 && H < 240) {
+		r = 0, g = X, b = C;
+	}
+	else if (H >= 240 && H < 300) {
+		r = X, g = 0, b = C;
+	}
+	else {
+		r = C, g = 0, b = X;
+	}
+
+	R = (r + m);
+	G = (g + m);
+	B = (b + m);
+}
+
+
 GameManager::GameManager(RigidBodySystemSimulator* simulator, Character* character)
 {
 	this->simulator = simulator;
@@ -16,6 +61,8 @@ GameManager::~GameManager()
 
 void GameManager::onStart()
 {
+	is_gameover = false;
+	effectTimer = 0;
 	player->init(Vec3(0.0, 0.3, 0));
 	// ball 0
 	{
@@ -26,9 +73,8 @@ void GameManager::onStart()
 
 		Rigidbody* rigidbody = new Rigidbody(transform);
 		rigidbody->friction = 0.5;
-		rigidbody->velocity = Vec3(0.1, 0.1, 4);
-		rigidbody->angularVelocity = Vec3(1, 0, 0);
-		rigidbody->angularMomentum = Vec3(0.1, 0.1, 0.0);
+		/*rigidbody->velocity = Vec3(0.1, 0.1, 4);
+		rigidbody->angularMomentum = Vec3(0.1, 0.1, 0.0);*/
 		rigidbody->setSphereInertia(0.25, 0.1);
 
 		Collider* collider = new Collider(transform, rigidbody);
@@ -45,7 +91,6 @@ void GameManager::onStart()
 	}
 	//Goal Detection Box Setup
 	{
-		
 		Transform* transform = new Transform();
 		transform->position = Vec3(0, 0.6, 6.5);
 		transform->rotation = Quat(0, 0, 1, 1);
@@ -58,7 +103,7 @@ void GameManager::onStart()
 		collider->isTrigger = true;
 		rigidbody->isFixed = true;
 		collider->setBox(Vec3(2.5, 7.5, 0.2));
-		goal = new Goal();
+		goal = new Goal(this);
 		goal->regist(transform, rigidbody, collider);
 		simulator->bindCustomObject(goal);
 	}
@@ -244,16 +289,65 @@ void GameManager::onStart()
 		{
 			Rigidbody* rb1 = netGrid[z];
 			Rigidbody* rb2 = netGrid[z-38];
-
-
 			simulator->bindSpring(new Spring(rb1, rb2, stiffness, dampening, length, Vec3(0, 0, 0), Vec3(0, 0, 0)));
 		}
 
 	}
 }
 
-
-
-void GameManager::onFrameUpdate()
+void GameManager::onFrameUpdate(DrawingUtilitiesClass* duc, ID3D11DeviceContext* ctx)
 {
+	if (is_gameover && effectTimer > 0) {
+		const float T = 0.5;
+		float t = 1 - fmod(effectTimer / T, 1);
+		if (hit_goal) {
+			float h0 = 100;
+			float s0 = 100;
+			float h1 = 40;
+			float s1 = 50;
+			float r, g, b;
+			HSVtoRGB(h0 * t + h1 * (1 - t), s0 * t + s1 * (1-t), 100, r, g, b);
+			Vec3 c0(r, g, b);
+			t = 1 - t;
+			HSVtoRGB(h0 * t + h1 * (1 - t), s0 * t + s1 * (1 - t), 100, r, g, b);
+			Vec3 c1(r, g, b);
+			duc->DrawFloor(ctx, c0, c1);
+		}
+		else {
+			float h0 = 0;
+			float s0 = 100;
+			float h1 = 60;
+			float s1 = 50;
+			float r, g, b;
+			HSVtoRGB(h0 * t + h1 * (1 - t), s0 * t + s1 * (1 - t), 100, r, g, b);
+			Vec3 c0(r, g, b);
+			t = 1 - t;
+			HSVtoRGB(h0 * t + h1 * (1 - t), s0 * t + s1 * (1 - t), 100, r, g, b);
+			Vec3 c1(r, g, b);
+			duc->DrawFloor(ctx, c0, c1);
+		}
+	}
+	else {
+		duc->DrawFloor(ctx, Vec3 (0.26, 0.52, 0.0), Vec3(0.24f, 0.48f, 0.0f));
+	}
+}
+
+void GameManager::onPhysicUpdate(float dt)
+{
+	if (is_gameover && effectTimer > 0) {
+		effectTimer -= dt;
+	}
+
+	if (!player->chance && !is_gameover && ball->rigidbody->velocity < 1e-4) {
+		onGameOver(false);
+	}
+}
+
+void GameManager::onGameOver(bool hit_goal)
+{
+	if (!is_gameover) {
+		is_gameover = true;
+		effectTimer = 1.5;
+		this->hit_goal = hit_goal;
+	}
 }

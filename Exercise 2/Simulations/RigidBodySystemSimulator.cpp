@@ -83,7 +83,7 @@ void RigidBodySystemSimulator::drawFrame(ID3D11DeviceContext* pd3dImmediateConte
 		customFixedObjects[i]->onFrameUpdate();
 	}
 
-	gameManager->onFrameUpdate();
+	gameManager->onFrameUpdate(DUC, pd3dImmediateContext);
 
 	player.draw(DUC);
 
@@ -146,6 +146,8 @@ void RigidBodySystemSimulator::simulateTimestep(float timeStep)
 	for (int i = 0; i < customObjects.size(); i++) {
 		customObjects[i]->onPhysicsUpdate(timeStep);
 	}
+	gameManager->onPhysicUpdate(timeStep);
+
 }
 
 void RigidBodySystemSimulator::onKeyboardPressed(unsigned int key)

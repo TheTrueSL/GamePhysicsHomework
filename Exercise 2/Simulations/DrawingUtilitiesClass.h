@@ -254,7 +254,7 @@ void createFloorStrokes() {
 
 // Draw a large, square plane at y=-1 with a checkerboard pattern
 // (Drawn as multiple quads, i.e. triangle strips, using a DirectXTK primitive batch)
-void DrawFloor(ID3D11DeviceContext* pd3dImmediateContext)
+void DrawFloor(ID3D11DeviceContext* pd3dImmediateContext, Vec3 c0, Vec3 c1)
 {
     // Setup position/normal/color effect
     g_pEffectPositionNormalColor->SetWorld(XMMatrixIdentity());
@@ -283,7 +283,7 @@ void DrawFloor(ID3D11DeviceContext* pd3dImmediateContext)
                                XMVectorSet(x  , y, z  , 0) };
 
             // Color checkerboard pattern (white & gray)
-            XMVECTOR color = ((int(z + x) % 2) == 0) ? XMVectorSet(0.26,0.52,0.0,1) : XMVectorSet(0.24f,0.48f,0.0f,1);
+            XMVECTOR color = ((int(z + x) % 2) == 0) ? XMVectorSet(c0.x, c0.y, c0.z, 1) : XMVectorSet(c1.x, c1.y, c1.z, 1);
 
             // Color attenuation based on distance to plane center
             float attenuation[] = {

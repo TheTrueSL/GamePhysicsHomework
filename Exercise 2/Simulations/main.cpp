@@ -335,8 +335,7 @@ void CALLBACK OnD3D11FrameRender( ID3D11Device* pd3dDevice, ID3D11DeviceContext*
 	// Draw Simulator
 	if(g_bDraw)g_pSimulator->drawFrame(pd3dImmediateContext);
 
-	// Draw floor
-	g_pDUC->DrawFloor(pd3dImmediateContext);
+	//
 
 	// Draw GUI
     TwDraw();
@@ -379,8 +378,8 @@ int main(int argc, char* argv[])
 	DXUTSetCallbackD3D11DeviceDestroyed( OnD3D11DestroyDevice );
 	// Init Drawing Class
 	g_pDUC = new DrawingUtilitiesClass();
-	g_pDUC->g_windowSize[0] = 1280;
-	g_pDUC->g_windowSize[1] = 960;
+	g_pDUC->g_windowSize[0] = 680;
+	g_pDUC->g_windowSize[1] = 480;
     // Init camera
  	XMFLOAT3 eye(0.0f, 0.0f, -2.0f);
 	XMFLOAT3 lookAt(0.0f, 0.0f, 0.0f);

@@ -1,5 +1,7 @@
 #pragma once
 
+#include <d3d11.h>
+
 #include "GameObject.h"
 #include "Spring.h"
 #include "Character.h"
@@ -16,14 +18,18 @@ public:
 	
 	void onStart();
 
-	void onFrameUpdate();
+	void onFrameUpdate(DrawingUtilitiesClass* duc, ID3D11DeviceContext* ctx);
+	void onPhysicUpdate(float dt);
 	
+	void onGameOver(bool hit_goal);
 
 private:
+	float effectTimer;
+	bool hit_goal;
+	bool is_gameover;
 	RigidBodySystemSimulator* simulator;
 	GamePhysics::Character* player;
 	GamePhysics::Ball* ball;
 	GamePhysics::Goal* goal;
-	
 	std::vector<GamePhysics::Rigidbody*> netGrid;
 };
