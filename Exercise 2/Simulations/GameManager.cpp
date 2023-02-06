@@ -327,7 +327,47 @@ void GameManager::onStart()
 	}
 
 	if (level > 1) {
+		int n = 4;
+		int m = 10;
+		float w = 0.5;
+		
+		for (int c = 0; c < m; c++) {
 
+			float x = (c - m * 0.5) * w * 1.2;
+			float y = n * w;
+			float z = 3;
+			Rigidbody* lastBody = nullptr;
+			{
+				Transform* bt = new Transform();
+				bt->position = Vec3(x, y, z);
+				Rigidbody* brb = new Rigidbody(bt);
+				brb->setBoxInertia(0.05, Vec3(w, w, 0.05));
+				brb->isFixed = true;
+				Collider* bcol = new Collider(bt, brb);
+				bcol->setBox(Vec3(w, w, 0.05));
+				GameObject* body = new GameObject(bt, brb, bcol);
+				simulator->bindGameObject(body);
+
+				lastBody = brb;
+			}
+			for (int i = 1; i < n; i++) {
+				Transform* bt = new Transform();
+				bt->position = Vec3(x, y - i * w, z);
+				Rigidbody* brb = new Rigidbody(bt);
+				brb->setBoxInertia(0.05, Vec3(w, w, 0.05));
+				Collider* bcol = new Collider(bt, brb);
+				bcol->setBox(Vec3(w, w, 0.05));
+				GameObject* body = new GameObject(bt, brb, bcol);
+				simulator->bindGameObject(body);
+				Spring* s0 = new Spring(lastBody, brb, 12, 0.001, 0.1, Vec3(w * 0.5, -w * 0.5, 0), Vec3(w * 0.5, w * 0.5, 0));
+				Spring* s1 = new Spring(lastBody, brb, 12, 0.001, 0.1, Vec3(-w * 0.5, -w * 0.5, 0), Vec3(-w * 0.5, w * 0.5, 0));
+				s0->tolerance = 2;
+				s1->tolerance = 2;
+				simulator->bindSpring(s0);
+				simulator->bindSpring(s1);
+				lastBody = brb;
+			}
+		}
 	}
 }
 

@@ -34,8 +34,9 @@ GamePhysics::Spring::~Spring()
 
 void GamePhysics::Spring::applyForce()
 {
-	if (!b0 || !b1)
-		return;
+	if (b0 == nullptr || b1 == nullptr)
+			return;
+
 	if (!b0->transform || !b1->transform)
 		return;
 
@@ -51,6 +52,11 @@ void GamePhysics::Spring::applyForce()
 
 	b0->addForce(f0, p0);
 	b1->addForce(-f0, p1);
+
+	if (norm(f0) > tolerance) {
+		b0 = nullptr;
+		b1 = nullptr;
+	}
 }
 
 void GamePhysics::Spring::drawAll(DrawingUtilitiesClass* duc)
@@ -58,6 +64,8 @@ void GamePhysics::Spring::drawAll(DrawingUtilitiesClass* duc)
 	duc->beginLine();
 	for (auto sit = Spring::dict.begin(); sit != Spring::dict.end(); ++sit) {
 		Spring* s = sit->second;
+		if (s->b0 == nullptr || s->b1 == nullptr)
+			continue;
 		Vec3 p0 = s->b0->transform->transformation.transformVector(s->offset0);
 		Vec3 p1 = s->b1->transform->transformation.transformVector(s->offset1);
 		{

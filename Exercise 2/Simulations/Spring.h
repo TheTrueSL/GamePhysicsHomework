@@ -29,6 +29,7 @@ namespace GamePhysics {
 		Vec3 offset0;
 		Vec3 offset1;
 
+		float tolerance = 1000;
 		float damping;
 		float stiffness;
 		float restLength;
