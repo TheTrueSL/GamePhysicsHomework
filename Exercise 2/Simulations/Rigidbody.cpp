@@ -15,6 +15,7 @@ Rigidbody::Rigidbody(Transform* transform)
 	inverseMass = 1;
 	isFixed = false;
 	fixRotation = false;
+	fixPosition = false;
 	useGravity = true;
 	this->friction = 1.0f;
 

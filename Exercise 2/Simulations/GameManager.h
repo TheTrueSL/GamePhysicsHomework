@@ -20,14 +20,17 @@ public:
 
 	void onFrameUpdate(DrawingUtilitiesClass* duc, ID3D11DeviceContext* ctx);
 	void onPhysicUpdate(float dt);
-	
+	void onKeyPressed(unsigned int key);
+	void onKeyReleased(unsigned int key);
 	void onGameOver(bool hit_goal);
 
 private:
 	float effectTimer;
+	float passed_time;
 	bool hit_goal;
 	bool is_gameover;
 	RigidBodySystemSimulator* simulator;
+
 	GamePhysics::Character* player;
 	GamePhysics::Ball* ball;
 	GamePhysics::Goal* goal;

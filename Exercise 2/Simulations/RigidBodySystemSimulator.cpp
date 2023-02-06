@@ -152,12 +152,12 @@ void RigidBodySystemSimulator::simulateTimestep(float timeStep)
 
 void RigidBodySystemSimulator::onKeyboardPressed(unsigned int key)
 {
-	player.onKeyPressed(key);
+	gameManager->onKeyPressed(key);
 }
 
 void RigidBodySystemSimulator::onKeyboardReleased(unsigned int key)
 {
-	player.onKeyReleased(key);
+	gameManager->onKeyReleased(key);
 }
 
 void RigidBodySystemSimulator::onClick(int x, int y)
@@ -324,7 +324,7 @@ void RigidBodySystemSimulator::collisionResolve(
 	const float& deltaTime)
 {
 	collisionRigidBodies(deltaTime);
-	collisionPLane(deltaTime, Vec3(0, 1, 0), -0.5, 1);
+	collisionPLane(deltaTime, Vec3(0, 1, 0), -0.5, 0.2);
 }
 
 void RigidBodySystemSimulator::collisionPLane(
@@ -332,9 +332,9 @@ void RigidBodySystemSimulator::collisionPLane(
 	const Vec3& n, const float offset, const float friction)
 {
 	const float dynFriction = friction * 0.8;
-	const float possoft = 0.05;
-	const float velsoft = 0.5;
-	const float c = 0.05;
+	const float possoft = 0.06;
+	const float velsoft = 0.7;
+	const float c = 0.08;
 
 	Plane plane;
 	plane.normal = n;
@@ -598,8 +598,9 @@ void RigidBodySystemSimulator::updatePosition(const float& timeStep)
 			
 		}
 		else {
-			transform->position +=
-				rigidbody->velocity * timeStep;
+			if(!rigidbody->fixPosition)
+				transform->position +=
+					rigidbody->velocity * timeStep;
 			
 			if (!rigidbody->fixRotation) {
 				const Vec3& vw = rigidbody->angularVelocity;

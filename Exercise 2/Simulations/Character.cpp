@@ -1,3 +1,4 @@
+#include "GameManager.h"
 #include "Character.h"
 #include "Ball.h"
 #include "DrawingUtilitiesClass.h"
@@ -10,7 +11,7 @@
 
 using namespace GamePhysics;
 
-const float ds = 5;
+const float ds = 2.8;
 
 GamePhysics::Character::Character()
 {
@@ -61,7 +62,7 @@ void GamePhysics::Character::draw(DrawingUtilitiesClass* duc)
 	keeper.draw(duc);
 }
 
-void GamePhysics::Character::init(Vec3 positon)
+void GamePhysics::Character::init()
 {
 	chance = true;
 	for (int i = 0; i < 4; i++)
@@ -129,23 +130,23 @@ void GamePhysics::Character::onMouseMove(int x, int y, Vec3 ro, Vec3 rd)
 	Vec3 p;
 	Vec3 newPos;
 	float z = dragZoffset;
-	if (planeIntersection(Vec3(0,-1, 0), Vec3(0, 0.25, -1), ro, rd, p)) {
+	if (planeIntersection(Vec3(0,-1, 0), Vec3(0, 0.2, -1), ro, rd, p)) {
 		z = z + p.z;
 		newPos = Vec3(p.x, p.y, 2 * z);
 	}
 	else {
 		newPos = Vec3(0, 0, z);
 	}
-	float lin_coef = 3.0;
-	float rot_coef = 2.5;
+	float lin_coef = 2.8;
+	float rot_coef = 2.2;
 	ball->transform->position = newPos;
 	ball->transform->position.z = dragZoffset;
 
-	ball->rigidbody->velocity *= std::max(0.0f, 1 - time_passed);
-	ball->rigidbody->angularMomentum *= std::max(0.0f, 1 - time_passed);
+	ball->rigidbody->velocity *= std::max(0.0f, 1 - time_passed * 0.8f);
+	ball->rigidbody->angularMomentum *= std::max(0.0f, 1 - time_passed * 0.5f);
 	Vec3 dPos = (newPos - lastPos);
-	ball->rigidbody->velocity += Vec3(dPos.x, dPos.y, dPos.z) * lin_coef;
-	ball->rigidbody->angularMomentum += cross(lastdPos, dPos) * rot_coef;
+	ball->rigidbody->velocity += Vec3(dPos.x * lin_coef, dPos.y, dPos.z * lin_coef);
+	ball->rigidbody->angularMomentum.z += cross(lastdPos, dPos).z * rot_coef;
 	lastPos = newPos;
 	lastdPos = dPos;
 	ball->update();
@@ -154,16 +155,32 @@ void GamePhysics::Character::onMouseMove(int x, int y, Vec3 ro, Vec3 rd)
 void GamePhysics::Character::onMousePressed(int x, int y, Vec3 ro, Vec3 rd)
 {
 	ticker = clock();
-	lastPos = Vec3();
-	lastdPos = Vec3();
-	ball->rigidbody->useGravity = false;
-	onMouseMove(x, y, ro, rd);
+	if (chance) {
+		Vec3 p;
+		Vec3 newPos;
+		float z = dragZoffset;
+		if (planeIntersection(Vec3(0, -1, 0), Vec3(0, 0.1, -1), ro, rd, p)) {
+			z = z + p.z;
+			newPos = Vec3(p.x, p.y, 2 * z);
+			lastPos = newPos;
+		}
+		else {
+			lastPos = Vec3();
+		}
+		lastdPos = Vec3();
+		ball->rigidbody->fixPosition = true;
+	}
 }
 
 void GamePhysics::Character::onMouseReleased(int x, int y)
 {
-	chance = false;
-	ball->rigidbody->useGravity = true;
+	if (chance) {
+		ball->rigidbody->fixPosition = false;
+		ball->rigidbody->velocity.z = std::max((float)ball->rigidbody->velocity.z, 0.1f);
+		ball->rigidbody->velocity.z += lastdPos.z * 2.2;
+		ball->rigidbody->velocity.z += 0.85;
+		chance = false;
+	}
 }
 
 void GamePhysics::Character::attachBall(Ball* b) 
@@ -178,18 +195,17 @@ void GamePhysics::Character::buildModel()
 		Rigidbody* rigidbody = new Rigidbody(transform);
 		Collider* collider = new Collider(transform, rigidbody);
 
-		transform->position = Vec3(0, 0, 6.1);
+		transform->position = Vec3(0, 0, 6);
 		transform->rotation = Quat(0, 0, 0, 1);
 		transform->rotation /= transform->rotation.norm();
 
 		rigidbody->mass = 4;
 		rigidbody->friction = 0;
 		rigidbody->isFixed = false;
-		rigidbody->useGravity = false;
 
 		collider->layer = 0b100;
 		collider->filter = 0b100;
-		collider->setBox(Vec3(0.75,0.75, 0.1));
+		collider->setBox(Vec3(0.64,0.64, 0.1));
 
 		this->keeper.regist(transform, rigidbody, collider);
 	}
@@ -198,7 +214,7 @@ void GamePhysics::Character::buildModel()
 			Rigidbody* rigidbody = new Rigidbody(transform);
 			Collider* collider = new Collider(transform, rigidbody);
 
-			transform->position = Vec3(-3, -0.5, 6.1);
+			transform->position = Vec3(-3.2, -0.5, 6.0);
 			transform->rotation = Quat(0, 0, 0, 1);
 			transform->rotation /= transform->rotation.norm();
 			rigidbody->isFixed = true;
@@ -213,7 +229,7 @@ void GamePhysics::Character::buildModel()
 		Rigidbody* rigidbody = new Rigidbody(transform);
 		Collider* collider = new Collider(transform, rigidbody);
 
-		transform->position = Vec3(-3, 2, 6.1);
+		transform->position = Vec3(-3.2, 2, 6);
 		transform->rotation = Quat(0, 0, 0, 1);
 		transform->rotation /= transform->rotation.norm();
 		rigidbody->isFixed = true;
@@ -228,7 +244,7 @@ void GamePhysics::Character::buildModel()
 		Rigidbody* rigidbody = new Rigidbody(transform);
 		Collider* collider = new Collider(transform, rigidbody);
 
-		transform->position = Vec3(3, 2, 6.1);
+		transform->position = Vec3(3.2, 2, 6);
 		transform->rotation = Quat(0, 0, 0, 1);
 		transform->rotation /= transform->rotation.norm();
 		rigidbody->isFixed = true;
@@ -243,7 +259,7 @@ void GamePhysics::Character::buildModel()
 		Rigidbody* rigidbody = new Rigidbody(transform);
 		Collider* collider = new Collider(transform, rigidbody);
 
-		transform->position = Vec3(3, -0.5, 6.1);
+		transform->position = Vec3(3.2, -0.5, 6);
 		transform->rotation = Quat(0, 0, 0, 1);
 		transform->rotation /= transform->rotation.norm();
 		rigidbody->isFixed = true;

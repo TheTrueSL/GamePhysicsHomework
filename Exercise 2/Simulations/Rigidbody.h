@@ -47,8 +47,8 @@ namespace GamePhysics {
 		float friction;
 		bool isFixed;
 		bool fixRotation;
+		bool fixPosition;
 		bool useGravity;
-
 		Vec3 CoM;
 
 		Mat3 worldInvInertia;

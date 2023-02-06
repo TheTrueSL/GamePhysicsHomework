@@ -34,6 +34,11 @@ GamePhysics::Spring::~Spring()
 
 void GamePhysics::Spring::applyForce()
 {
+	if (!b0 || !b1)
+		return;
+	if (!b0->transform || !b1->transform)
+		return;
+
 	// hook's law
 	Vec3 p0 = b0->transform->transformation.transformVector(offset0);
 	Vec3 p1 = b1->transform->transformation.transformVector(offset1);

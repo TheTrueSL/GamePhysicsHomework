@@ -12,11 +12,10 @@ namespace GamePhysics
 	public:
 		Character();
 		~Character();
-
 		void onUpdate(const float dt);
 		void draw(DrawingUtilitiesClass* duc);
 
-		void init(Vec3 positon);
+		void init();
 		void updateTransformations();
 
 		void onKeyPressed(unsigned int);
@@ -40,6 +39,7 @@ namespace GamePhysics
 		Vec3 lastPos;
 		Vec3 lastdPos;
 		bool chance;
+
 	};
 
 }

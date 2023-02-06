@@ -63,12 +63,13 @@ void GameManager::onStart()
 {
 	is_gameover = false;
 	effectTimer = 0;
-	player->init(Vec3(0.0, 0.3, 0));
+	passed_time = 0;
+	player->init();
 	// ball 0
 	{
 		Transform* transform = new Transform();
 		//transform->position = Vec3(0.5, -0.4, 0);
-		transform->position = Vec3(0.5, 0, 0);
+		transform->position = Vec3(0, 0, 0);
 		transform->rotation = Quat(0, 0, 0, 1);
 
 		Rigidbody* rigidbody = new Rigidbody(transform);
@@ -298,13 +299,13 @@ void GameManager::onStart()
 void GameManager::onFrameUpdate(DrawingUtilitiesClass* duc, ID3D11DeviceContext* ctx)
 {
 	if (is_gameover && effectTimer > 0) {
-		const float T = 0.5;
-		float t = 1 - fmod(effectTimer / T, 1);
+		const float T = 0.2;
+		float t = round((sinf(effectTimer / T) + 1) * 0.5f);
 		if (hit_goal) {
 			float h0 = 100;
 			float s0 = 100;
 			float h1 = 40;
-			float s1 = 50;
+			float s1 = 90;
 			float r, g, b;
 			HSVtoRGB(h0 * t + h1 * (1 - t), s0 * t + s1 * (1-t), 100, r, g, b);
 			Vec3 c0(r, g, b);
@@ -317,7 +318,7 @@ void GameManager::onFrameUpdate(DrawingUtilitiesClass* duc, ID3D11DeviceContext*
 			float h0 = 0;
 			float s0 = 100;
 			float h1 = 60;
-			float s1 = 50;
+			float s1 = 90;
 			float r, g, b;
 			HSVtoRGB(h0 * t + h1 * (1 - t), s0 * t + s1 * (1 - t), 100, r, g, b);
 			Vec3 c0(r, g, b);
@@ -337,17 +338,42 @@ void GameManager::onPhysicUpdate(float dt)
 	if (is_gameover && effectTimer > 0) {
 		effectTimer -= dt;
 	}
-
-	if (!player->chance && !is_gameover && ball->rigidbody->velocity < 1e-4) {
-		onGameOver(false);
+	if (!player->chance) {
+		passed_time += dt;
+		if (!is_gameover && passed_time > 5 && (ball->rigidbody->velocity.z < 1e-3 || norm(ball->transform->position) > 8)) {
+			onGameOver(false);
+		}
 	}
+}
+
+void GameManager::onKeyPressed(unsigned int key)
+{
+	;
+	if (is_gameover && key == 'R') {
+		is_gameover = false;
+		goal->scored = false;
+		effectTimer = 0;
+		passed_time = 0;
+		ball->rigidbody->init();
+		ball->transform->position = Vec3();
+		ball->transform->rotation = Quat(0, 0, 0, 1);
+		player->init();
+	}
+	else {
+		player->onKeyPressed(key);
+	}
+}
+
+void GameManager::onKeyReleased(unsigned int key)
+{
+	player->onKeyReleased(key);
 }
 
 void GameManager::onGameOver(bool hit_goal)
 {
 	if (!is_gameover) {
 		is_gameover = true;
-		effectTimer = 1.5;
+		effectTimer = 15;
 		this->hit_goal = hit_goal;
 	}
 }
