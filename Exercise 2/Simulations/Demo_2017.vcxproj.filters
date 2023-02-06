@@ -35,6 +35,9 @@
     <ClCompile Include="Goal.cpp">
       <Filter>SimulaitonBody</Filter>
     </ClCompile>
+    <ClCompile Include="Net.cpp">
+      <Filter>SimulaitonBody</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="DrawingUtilitiesClass.h" />
@@ -73,6 +76,9 @@
       <Filter>SimulaitonBody</Filter>
     </ClInclude>
     <ClInclude Include="Goal.h">
+      <Filter>SimulaitonBody</Filter>
+    </ClInclude>
+    <ClInclude Include="Net.h">
       <Filter>SimulaitonBody</Filter>
     </ClInclude>
   </ItemGroup>

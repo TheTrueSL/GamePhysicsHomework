@@ -543,6 +543,9 @@ void GamePhysics::Collider::draw(DrawingUtilitiesClass* duc)
 
 void GamePhysics::Collider::drawShadow(DrawingUtilitiesClass* duc, float y, const Vec3& dir)
 {
+	if (rigidbody->isFixed)
+		return;
+
 	if (type == ColliderType::Sphere) {
 		Mat4 scale;
 		scale.initScaling(size.x, size.x, size.x);

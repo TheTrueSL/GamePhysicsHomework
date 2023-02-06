@@ -158,6 +158,11 @@ void RigidBodySystemSimulator::onKeyboardPressed(unsigned int key)
 void RigidBodySystemSimulator::onKeyboardReleased(unsigned int key)
 {
 	gameManager->onKeyReleased(key);
+	if (key == 'N') {
+		gameManager->level = (gameManager->level + 1) % 3;
+
+		loadTestSetup();
+	}
 }
 
 void RigidBodySystemSimulator::onClick(int x, int y)
@@ -250,7 +255,7 @@ void RigidBodySystemSimulator::screen2Ray(int x, int y, Vec3& outO, Vec3& outD)
 void RigidBodySystemSimulator::loadTestSetup() {
 	reset();
 
-	_linearDamping = 0.025;
+	_linearDamping = 0.055;
 	_angularDamping = 1e-4;
 
 	Vec3 gravity(0, -2.2, 0);
@@ -415,9 +420,9 @@ void RigidBodySystemSimulator::collisionPLane(
 
 void RigidBodySystemSimulator::collisionRigidBodies(const float& deltaTime)
 {
-	const float bounciness = 0.0;
-	const float possoft = 0.03;
-	const float velsoft = 0.5;
+	const float bounciness = 0.05;
+	const float possoft = 0.25;
+	const float velsoft = 0.65;
 	for (auto cit0 = Collider::dict.begin(); cit0 != Collider::dict.end(); ++cit0)
 	{
 		Collider* collider0 = cit0->second;

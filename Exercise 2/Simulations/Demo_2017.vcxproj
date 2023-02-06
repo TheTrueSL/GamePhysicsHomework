@@ -229,6 +229,7 @@
     <ClCompile Include="Collider.cpp" />
     <ClCompile Include="GameManager.cpp" />
     <ClCompile Include="GameObject.cpp" />
+    <ClCompile Include="Net.cpp" />
     <ClCompile Include="Rigidbody.cpp" />
     <ClCompile Include="RigidBodySystemSimulator.cpp" />
     <ClCompile Include="Goal.cpp" />
@@ -247,6 +248,7 @@
     <ClInclude Include="GameObject.h" />
     <ClInclude Include="Goal.h" />
     <ClInclude Include="Mat3.h" />
+    <ClInclude Include="Net.h" />
     <ClInclude Include="Rigidbody.h" />
     <ClInclude Include="RigidBodySystemSimulator.h" />
     <ClInclude Include="Simulator.h" />

@@ -5,7 +5,7 @@
 void GamePhysics::Ball::onCollisionEnter(Collider* other)
 {
 	if (other != nullptr) {
-		rigidbody->velocity.z = -abs(rigidbody->velocity.z);
+		//rigidbody->velocity.z = -abs(rigidbody->velocity.z);
 	}
 }
 

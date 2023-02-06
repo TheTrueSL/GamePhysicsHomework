@@ -15,6 +15,7 @@ const float ds = 2.8;
 
 GamePhysics::Character::Character()
 {
+	enableKeeper = true;
 	dragZoffset = 0;
 	buildModel();
 }
@@ -25,31 +26,33 @@ GamePhysics::Character::~Character()
 
 void GamePhysics::Character::onUpdate(const float dt)
 {
-	if (pressed[0]) {
-		keeper.rigidbody->velocity.y = -ds;
-		//keeper.rigidbody->force.y = 0;
-	}
-	if (pressed[1]) {
-		keeper.rigidbody->velocity.y = ds;
-		//keeper.rigidbody->force.y = 0;
-	}
-	if (pressed[2]) {
-		keeper.rigidbody->velocity.x = -ds;
-		//keeper.rigidbody->force.x = 0;
-	}
-	if (pressed[3]) {
-		keeper.rigidbody->velocity.x = ds;
-		//keeper.rigidbody->force.x = 0;
-	}
+	if (enableKeeper) {
+		if (pressed[0]) {
+			keeper.rigidbody->velocity.y = -ds;
+			//keeper.rigidbody->force.y = 0;
+		}
+		if (pressed[1]) {
+			keeper.rigidbody->velocity.y = ds;
+			//keeper.rigidbody->force.y = 0;
+		}
+		if (pressed[2]) {
+			keeper.rigidbody->velocity.x = -ds;
+			//keeper.rigidbody->force.x = 0;
+		}
+		if (pressed[3]) {
+			keeper.rigidbody->velocity.x = ds;
+			//keeper.rigidbody->force.x = 0;
+		}
 
-	keeper.transform->position.z = ancher[0].transform->position.z;
-	keeper.rigidbody->velocity.z = 0;
-	keeper.transform->position.x = std::min(ancher[2].transform->position.x,
-		std::max(ancher[1].transform->position.x, keeper.transform->position.x));
-	keeper.transform->position.y = std::min(ancher[1].transform->position.y,
-		std::max(ancher[0].transform->position.y, keeper.transform->position.y));
-	keeper.rigidbody->angularMomentum -= keeper.rigidbody->angularMomentum * dt;
-	keeper.rigidbody->angularVelocity -= keeper.rigidbody->angularVelocity * dt;
+		keeper.transform->position.z = ancher[0].transform->position.z;
+		keeper.rigidbody->velocity.z = 0;
+		keeper.transform->position.x = std::min(ancher[2].transform->position.x,
+			std::max(ancher[1].transform->position.x, keeper.transform->position.x));
+		keeper.transform->position.y = std::min(ancher[1].transform->position.y,
+			std::max(ancher[0].transform->position.y, keeper.transform->position.y));
+		keeper.rigidbody->angularMomentum -= keeper.rigidbody->angularMomentum * dt;
+		keeper.rigidbody->angularVelocity -= keeper.rigidbody->angularVelocity * dt;
+	}
 
 }
 
@@ -59,7 +62,9 @@ void GamePhysics::Character::draw(DrawingUtilitiesClass* duc)
 	float y_plane = -0.5;
 	normalize(dir);
 	duc->setUpLighting(Vec3(), Vec3(1, 1, 1), 10, Vec3(1,0,0));
-	keeper.draw(duc);
+	if (enableKeeper) {
+		keeper.draw(duc);
+	}
 }
 
 void GamePhysics::Character::init()
@@ -74,7 +79,9 @@ void GamePhysics::Character::init()
 
 void GamePhysics::Character::updateTransformations()
 {
-	keeper.update();
+	if (enableKeeper) {
+		keeper.update();
+	}
 }
 
 void GamePhysics::Character::onKeyPressed(unsigned int key)
@@ -130,23 +137,23 @@ void GamePhysics::Character::onMouseMove(int x, int y, Vec3 ro, Vec3 rd)
 	Vec3 p;
 	Vec3 newPos;
 	float z = dragZoffset;
-	if (planeIntersection(Vec3(0,-1, 0), Vec3(0, 0.2, -1), ro, rd, p)) {
+	if (planeIntersection(Vec3(0,-1, 0), Vec3(0, 0.4, -1), ro, rd, p)) {
 		z = z + p.z;
 		newPos = Vec3(p.x, p.y, 2 * z);
 	}
 	else {
 		newPos = Vec3(0, 0, z);
 	}
-	float lin_coef = 2.8;
-	float rot_coef = 2.2;
+	float lin_coef = 2.5;
+	float rot_coef = 0.8;
 	ball->transform->position = newPos;
 	ball->transform->position.z = dragZoffset;
 
 	ball->rigidbody->velocity *= std::max(0.0f, 1 - time_passed * 0.8f);
-	ball->rigidbody->angularMomentum *= std::max(0.0f, 1 - time_passed * 0.5f);
+	ball->rigidbody->angularMomentum *= std::max(0.0f, 1 - time_passed * 0.4f);
 	Vec3 dPos = (newPos - lastPos);
 	ball->rigidbody->velocity += Vec3(dPos.x * lin_coef, dPos.y, dPos.z * lin_coef);
-	ball->rigidbody->angularMomentum.z += cross(lastdPos, dPos).z * rot_coef;
+	ball->rigidbody->angularMomentum += cross(lastdPos, dPos) * rot_coef;
 	lastPos = newPos;
 	lastdPos = dPos;
 	ball->update();
@@ -159,7 +166,7 @@ void GamePhysics::Character::onMousePressed(int x, int y, Vec3 ro, Vec3 rd)
 		Vec3 p;
 		Vec3 newPos;
 		float z = dragZoffset;
-		if (planeIntersection(Vec3(0, -1, 0), Vec3(0, 0.1, -1), ro, rd, p)) {
+		if (planeIntersection(Vec3(0, -1, 0), Vec3(0, 0.2, -1), ro, rd, p)) {
 			z = z + p.z;
 			newPos = Vec3(p.x, p.y, 2 * z);
 			lastPos = newPos;
@@ -177,8 +184,8 @@ void GamePhysics::Character::onMouseReleased(int x, int y)
 	if (chance) {
 		ball->rigidbody->fixPosition = false;
 		ball->rigidbody->velocity.z = std::max((float)ball->rigidbody->velocity.z, 0.1f);
-		ball->rigidbody->velocity.z += lastdPos.z * 2.2;
-		ball->rigidbody->velocity.z += 0.85;
+		ball->rigidbody->velocity.z += (lastdPos.z + abs(lastdPos.y)) * 2.5;
+		ball->rigidbody->velocity.z += 1.5;
 		chance = false;
 	}
 }

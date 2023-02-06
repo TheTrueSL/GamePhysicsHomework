@@ -39,7 +39,7 @@ namespace GamePhysics
 		Vec3 lastPos;
 		Vec3 lastdPos;
 		bool chance;
-
+		bool enableKeeper;
 	};
 
 }

@@ -4,6 +4,12 @@
 
 using namespace GamePhysics;
 
+#define KEY_SPACE 32
+#define KEY_UP 38
+#define KEY_DOWN 40
+#define KEY_LEFT 37
+#define KEY_RIGHT 39
+
 void HSVtoRGB(float H, float S, float V, float& R, float& G, float& B) {
 	//H(Hue): 0-360 degrees
 	//S(Saturation) : 0 - 100 percent
@@ -53,6 +59,7 @@ GameManager::GameManager(RigidBodySystemSimulator* simulator, Character* charact
 {
 	this->simulator = simulator;
 	this->player = character;
+	level = 0;
 }
 
 GameManager::~GameManager()
@@ -93,8 +100,8 @@ void GameManager::onStart()
 	//Goal Detection Box Setup
 	{
 		Transform* transform = new Transform();
-		transform->position = Vec3(0, 0.6, 6.5);
-		transform->rotation = Quat(0, 0, 1, 1);
+		transform->position = Vec3(0, 0.6, 6.8);
+		transform->rotation = Quat(0, 0, 0, 1);
 		transform->rotation /= transform->rotation.norm();
 		Rigidbody* rigidbody = new Rigidbody(transform);
 		
@@ -103,7 +110,7 @@ void GameManager::onStart()
 		collider->filter = 0b0100;
 		collider->isTrigger = true;
 		rigidbody->isFixed = true;
-		collider->setBox(Vec3(2.5, 7.5, 0.2));
+		collider->setBox(Vec3(6.4, 1.8, 0.3));
 		goal = new Goal(this);
 		goal->regist(transform, rigidbody, collider);
 		simulator->bindCustomObject(goal);
@@ -251,47 +258,75 @@ void GameManager::onStart()
 	}
 
 	{
-		//Backside of the grid
-		Rigidbody* oldPoint = NULL;
-		float stiffness = 1.0f;
-		float dampening = 1.0f;
-		float  length = 0.21f;
-		float mass = 0.02f;
-
-		for (int i = 0; i < 13; i++) {
-			for (int j = 0; j < 38; j++) {
-				Transform* t = new Transform();
-				t->position = Vec3(-3.75 + (0.2 * j), 1.75 - (0.2 * i), 8);
-				Rigidbody* rb = new Rigidbody(t);
-				//Change here to false to activate physics
-				if (i == 0 || i == 12 || j == 0 || j == 37) {
-					rb->isFixed = true;
-				}
-				else {
-					rb->isFixed = false;
-				}
-				rb->useGravity = false;
-				rb->mass = mass;
-				Collider* col = new Collider(t, rb);
-				col->layer = 0b1000;
-				col->filter = 0b0110;
-				col->setSphere(0.001);
-				GameObject* newPoint = new GameObject(t, rb, col);
-				netGrid.push_back(rb);
-				simulator->bindGameObject(newPoint);
-				if (!j == 0) {
-					simulator->bindSpring(new Spring(oldPoint, rb, stiffness, dampening, length, Vec3(0, 0, 0), Vec3(0, 0, 0)));
-				}
-				oldPoint = rb;
-			}
+		int n = 8;
+		float size = 15;
+		float w = size / n;
+		float ox = 4.9;
+		float oy = 0.23;
+		float oz = 8.0;
+		for (int i = 0; i < n; i++) {
+			Transform* t = new Transform();
+			t->position = Vec3(ox + i * w * 1.01, oy, oz);
+			t->rotation = Quat(0, 0, 0, 1);
+			t->rotation /= t->rotation.norm();
+			Rigidbody* rb = new Rigidbody(t);
+			rb->setBoxInertia(1, Vec3(w, 0.6, 0.05));
+			Collider* col = new Collider(t, rb);
+			col->setBox(Vec3(w, 0.6, 0.05));
+			GameObject* newPoint = new GameObject(t, rb, col);
+			simulator->bindGameObject(newPoint);
 		}
-
-		for (int z=38; z<netGrid.size()-1; z++)
-		{
-			Rigidbody* rb1 = netGrid[z];
-			Rigidbody* rb2 = netGrid[z-38];
-			simulator->bindSpring(new Spring(rb1, rb2, stiffness, dampening, length, Vec3(0, 0, 0), Vec3(0, 0, 0)));
+		for (int i = 0; i < n; i++) {
+			Transform* t = new Transform();
+			t->position = Vec3(-ox - i * w * 1.01, oy, oz);
+			t->rotation = Quat(0, 0, 0, 1);
+			t->rotation /= t->rotation.norm();
+			Rigidbody* rb = new Rigidbody(t);
+			rb->setBoxInertia(1, Vec3(w, 0.6, 0.05));
+			Collider* col = new Collider(t, rb);
+			col->setBox(Vec3(w, 0.6, 0.05));
+			GameObject* newPoint = new GameObject(t, rb, col);
+			simulator->bindGameObject(newPoint);
 		}
+	}
+
+	if (level > 0) {
+		int n = 24;
+		float w = 0.25;
+		float h = 0.85;
+		float rx = 8.0;
+		float ry = 0.25;
+		float rz = 6.0;
+		for (int i = 0; i < n; i++) {
+			Transform* bt = new Transform();
+			float x = (rand() % 1000) * 0.001;
+			float y = (rand() % 1000) * 0.001;
+			float z = (rand() % 1000) * 0.001;
+			x = (2 * x - 1) * rx;
+			y = y * ry + h * 0.4;
+			z = z * rz;
+			bt->position = Vec3(x, y, z);
+
+			Rigidbody* brb = new Rigidbody(bt);
+			brb->setBoxInertia(0.6, Vec3(w, h, w));
+			Collider* bcol = new Collider(bt, brb);
+			bcol->setBox(Vec3(w, h, w));
+			GameObject* body = new GameObject(bt, brb, bcol);
+			simulator->bindGameObject(body);
+
+			Transform* ht = new Transform();
+			ht->position = Vec3(x, y + 0.51 * h, z);
+			Rigidbody* hrb = new Rigidbody(ht);
+			hrb->setSphereInertia(0.2, w * 0.5);
+			Collider* hcol = new Collider(ht, hrb);
+			hcol->setSphere(w * 0.5);
+			GameObject* head = new GameObject(ht, hrb, hcol);
+			simulator->bindGameObject(head);
+			simulator->bindSpring(new Spring(hrb, brb, 5, 0.01, 0, Vec3(0, -w * 0.5, 0), Vec3(0, h * 0.5, 0)));
+		}
+	}
+
+	if (level > 1) {
 
 	}
 }
@@ -340,7 +375,7 @@ void GameManager::onPhysicUpdate(float dt)
 	}
 	if (!player->chance) {
 		passed_time += dt;
-		if (!is_gameover && passed_time > 5 && (ball->rigidbody->velocity.z < 1e-3 || norm(ball->transform->position) > 8)) {
+		if (!is_gameover && passed_time > 3 && (ball->rigidbody->velocity.z < 5e-3 || ball->transform->position.z > 8 || abs(ball->transform->position.x) > 8)) {
 			onGameOver(false);
 		}
 	}
@@ -354,10 +389,7 @@ void GameManager::onKeyPressed(unsigned int key)
 		goal->scored = false;
 		effectTimer = 0;
 		passed_time = 0;
-		ball->rigidbody->init();
-		ball->transform->position = Vec3();
-		ball->transform->rotation = Quat(0, 0, 0, 1);
-		player->init();
+		onRestart();
 	}
 	else {
 		player->onKeyPressed(key);
@@ -375,5 +407,20 @@ void GameManager::onGameOver(bool hit_goal)
 		is_gameover = true;
 		effectTimer = 15;
 		this->hit_goal = hit_goal;
+	}
+}
+
+void GameManager::onRestart()
+{
+	ball->rigidbody->init();
+	ball->transform->position = Vec3();
+	ball->transform->rotation = Quat(0, 0, 0, 1);
+	player->init();
+	if (level > 0) {
+
+	}
+
+	if (level > 1) {
+
 	}
 }

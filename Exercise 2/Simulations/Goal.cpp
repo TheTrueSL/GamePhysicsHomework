@@ -20,6 +20,7 @@ void GamePhysics::Goal::onCollisionEnter(Collider* other)
 
 void GamePhysics::Goal::onDraw(DrawingUtilitiesClass* duc)
 {
+	//collider->draw(duc);
 }
 
 void GamePhysics::Goal::onFrameUpdate()

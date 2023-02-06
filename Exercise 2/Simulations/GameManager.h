@@ -23,8 +23,9 @@ public:
 	void onKeyPressed(unsigned int key);
 	void onKeyReleased(unsigned int key);
 	void onGameOver(bool hit_goal);
+	void onRestart();
 
-private:
+	int level;
 	float effectTimer;
 	float passed_time;
 	bool hit_goal;
